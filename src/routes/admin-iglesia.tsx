@@ -346,14 +346,7 @@ function Panel({
                 </form>
               </section>
 
-              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-card p-4 shadow-[var(--shadow-elegant)]">
-                <input
-                  ref={fotoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={elegirFotoPerfil}
-                />
+              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-card p-3.5 shadow-[var(--shadow-elegant)]">
                 <button
                   type="button"
                   onClick={() => fotoInputRef.current?.click()}
@@ -365,10 +358,10 @@ function Panel({
                     <img
                       src={iglesia.pastor_foto}
                       alt="Tu foto de perfil"
-                      className="h-11 w-11 rounded-full border border-border object-cover"
+                      className="h-10 w-10 rounded-full border border-border object-cover"
                     />
                   ) : (
-                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
                       <UserRound className="h-5 w-5" aria-hidden />
                     </span>
                   )}
@@ -389,12 +382,38 @@ function Panel({
               )}
             </SheetContent>
           </Sheet>
+          <input
+            ref={fotoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={elegirFotoPerfil}
+          />
+          <button
+            type="button"
+            onClick={() => fotoInputRef.current?.click()}
+            aria-label="Cambiar foto de perfil"
+            title="Cambiar foto de perfil"
+            className="shrink-0 rounded-full transition hover:opacity-80"
+          >
+            {iglesia.pastor_foto ? (
+              <img
+                src={iglesia.pastor_foto}
+                alt="Tu foto de perfil"
+                className="h-8 w-8 rounded-full border border-white/30 object-cover"
+              />
+            ) : (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10">
+                <UserRound className="h-4 w-4" aria-hidden />
+              </span>
+            )}
+          </button>
           <img
             src={iglesia.logo}
             alt={`Logo de ${iglesia.nombre}`}
-            width={36}
-            height={36}
-            className="h-9 w-9 shrink-0 rounded-full border border-white/30 object-cover"
+            width={32}
+            height={32}
+            className="h-8 w-8 shrink-0 rounded-full border border-white/30 object-cover"
           />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] tracking-[0.25em] uppercase opacity-70">Iglesia</p>
