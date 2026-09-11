@@ -7,9 +7,11 @@ import {
   ImagePlus,
   Instagram,
   LayoutList,
+  Menu,
   Pin,
   Plus,
   Radio,
+  Settings2,
   Trash2,
   UserRound,
   Users,
@@ -20,6 +22,14 @@ import { MenuBar } from "@/components/MenuBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import {
   actualizarLinks,
@@ -187,6 +197,7 @@ function Panel({
   const [publicaciones, setPublicaciones] = useState<Contenido[]>([]);
   const [vista, setVista] = useState<"lista" | "calendario">("lista");
   const [formAbierto, setFormAbierto] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   useEffect(() => {
     setMiembros(miembrosDe(iglesia.id));
@@ -219,6 +230,54 @@ function Panel({
     <div className="min-h-screen bg-surface-muted pb-28">
       <header className="sticky top-0 z-30 bg-navy text-navy-foreground shadow-[var(--shadow-elegant)]">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3.5">
+          <Sheet open={menuAbierto} onOpenChange={setMenuAbierto}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                aria-label="Abrir menú del pastor"
+                className="-ml-1 rounded-xl p-2 transition hover:bg-white/10"
+              >
+                <Menu className="h-6 w-6" aria-hidden />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[86vw] max-w-xs overflow-y-auto">
+              <SheetHeader className="text-left">
+                <SheetTitle className="text-navy">{iglesia.nombre}</SheetTitle>
+                <SheetDescription>Panel del pastor</SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-6 rounded-2xl bg-surface-muted p-5 text-center">
+                <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Users className="h-4 w-4" aria-hidden /> Miembros activos con la App
+                </p>
+                <p className="text-gradient-gold mt-1 text-4xl font-black">{miembros.length}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Código de acceso: {iglesia.codigo_acceso}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuAbierto(false);
+                  setTimeout(() => {
+                    document
+                      .getElementById("configurar-barra-menu")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 250);
+                }}
+                className="mt-4 flex w-full items-center gap-3 rounded-2xl bg-navy px-4 py-4 text-left text-base font-bold text-navy-foreground transition hover:opacity-90"
+              >
+                <Settings2 className="h-5 w-5" aria-hidden />
+                Configurar mi barra de menú
+              </button>
+
+              <p className="mt-3 text-xs text-muted-foreground">
+                Ahí podés cambiar los links de Facebook, YouTube, Instagram, radio y libros que ven
+                tus miembros.
+              </p>
+            </SheetContent>
+          </Sheet>
           <img
             src={iglesia.logo}
             alt={`Logo de ${iglesia.nombre}`}
@@ -404,7 +463,10 @@ function Panel({
 
         <PerfilPastorCard iglesia={iglesia} onCambio={onCambio} />
 
-        <section className="rounded-3xl bg-card p-5 shadow-[var(--shadow-elegant)]">
+        <section
+          id="configurar-barra-menu"
+          className="scroll-mt-24 rounded-3xl bg-card p-5 shadow-[var(--shadow-elegant)]"
+        >
           <h2 className="text-base font-bold text-navy">Configurar Mi Barra de Menu</h2>
           <form onSubmit={guardar} className="mt-4 space-y-4">
             {CAMPOS.map(({ key, label, Icon }) => (
