@@ -463,7 +463,10 @@ function Panel({
 
         <PerfilPastorCard iglesia={iglesia} onCambio={onCambio} />
 
-        <section className="rounded-3xl bg-card p-5 shadow-[var(--shadow-elegant)]">
+        <section
+          id="configurar-barra-menu"
+          className="scroll-mt-24 rounded-3xl bg-card p-5 shadow-[var(--shadow-elegant)]"
+        >
           <h2 className="text-base font-bold text-navy">Configurar Mi Barra de Menu</h2>
           <form onSubmit={guardar} className="mt-4 space-y-4">
             {CAMPOS.map(({ key, label, Icon }) => (
