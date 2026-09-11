@@ -257,7 +257,7 @@ function Panel({
   return (
     <div className="min-h-screen bg-surface-muted pb-28">
       <header className="sticky top-0 z-30 bg-navy text-navy-foreground shadow-[var(--shadow-elegant)]">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3.5">
+        <div className="mx-auto flex max-w-3xl items-center gap-2.5 px-4 py-2.5">
           <Sheet open={menuAbierto} onOpenChange={setMenuAbierto}>
             <SheetTrigger asChild>
               <button
@@ -274,18 +274,18 @@ function Panel({
                 <SheetDescription>Panel del pastor</SheetDescription>
               </SheetHeader>
 
-              <div className="mt-6 rounded-2xl bg-surface-muted p-5 text-center">
-                <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" aria-hidden /> Miembros activos con la App
+              <div className="mt-5 rounded-2xl bg-surface-muted p-4 text-center">
+                <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Users className="h-3.5 w-3.5" aria-hidden /> Miembros activos con la App
                 </p>
-                <p className="text-gradient-gold mt-1 text-4xl font-black">{miembros.length}</p>
+                <p className="text-gradient-gold mt-1 text-3xl font-black">{miembros.length}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Código de acceso: {iglesia.codigo_acceso}
                 </p>
               </div>
 
               <details className="mt-4 rounded-2xl bg-card p-4 shadow-[var(--shadow-elegant)]">
-                <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-navy">
+                <summary className="flex cursor-pointer items-center gap-2 text-sm font-bold text-navy">
                   <Users className="h-4 w-4 text-primary" aria-hidden /> Mis miembros
                 </summary>
                 <div className="mt-3 overflow-x-auto">
@@ -318,7 +318,7 @@ function Panel({
               </details>
 
               <section className="mt-4 rounded-2xl bg-card p-4 shadow-[var(--shadow-elegant)]">
-                <h2 className="flex items-center gap-2 text-base font-bold text-navy">
+                <h2 className="flex items-center gap-2 text-sm font-bold text-navy">
                   <Settings2 className="h-4 w-4 text-primary" aria-hidden />
                   Configurar mi barra de menú
                 </h2>
@@ -417,25 +417,25 @@ function Panel({
           />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] tracking-[0.25em] uppercase opacity-70">Iglesia</p>
-            <h1 className="truncate text-base font-bold">{iglesia.nombre}</h1>
+            <h1 className="truncate text-sm font-bold">{iglesia.nombre}</h1>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-5 px-4 pt-6">
+      <main className="mx-auto max-w-3xl space-y-4 px-4 pt-5">
         <section>
-          <h2 className="text-3xl leading-tight font-black text-navy">
+          <h2 className="text-2xl leading-tight font-black text-navy">
             Comparte lo que Dios está haciendo
           </h2>
-          <p className="mt-3 text-base text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             Crea y gestiona los anuncios de tu comunidad en un solo lugar.
           </p>
           <button
             type="button"
             onClick={() => setFormAbierto((v) => !v)}
-            className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-navy px-6 py-5 text-lg font-bold text-navy-foreground shadow-[var(--shadow-elegant)] transition hover:opacity-90"
+            className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-navy px-5 py-4 text-base font-bold text-navy-foreground shadow-[var(--shadow-elegant)] transition hover:opacity-90"
           >
-            <Plus className="h-6 w-6" aria-hidden />
+            <Plus className="h-5 w-5" aria-hidden />
             Nuevo anuncio
           </button>
         </section>
@@ -451,7 +451,7 @@ function Panel({
           />
         )}
 
-        <div className="inline-flex rounded-2xl bg-card p-1.5 shadow-[var(--shadow-elegant)]">
+        <div className="inline-flex rounded-xl bg-card p-1 shadow-[var(--shadow-elegant)]">
           {(
             [
               { key: "lista", label: "Lista", Icon: LayoutList },
@@ -463,11 +463,11 @@ function Panel({
               type="button"
               onClick={() => setVista(key)}
               aria-pressed={vista === key}
-              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-base font-semibold transition ${
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
                 vista === key ? "bg-surface-muted text-navy" : "text-muted-foreground"
               }`}
             >
-              <Icon className="h-5 w-5" aria-hidden />
+              <Icon className="h-4 w-4" aria-hidden />
               {label}
             </button>
           ))}
