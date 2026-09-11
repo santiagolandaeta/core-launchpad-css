@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -198,6 +198,34 @@ function Panel({
   const [vista, setVista] = useState<"lista" | "calendario">("lista");
   const [formAbierto, setFormAbierto] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [errorFoto, setErrorFoto] = useState<string | null>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+
+  function elegirFotoPerfil(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1_500_000) {
+      setErrorFoto("La foto es muy grande. Elegí una de menos de 1,5 MB.");
+      return;
+    }
+    setErrorFoto(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        actualizarPerfilPastor(iglesia.id, {
+          pastor_nombre: iglesia.pastor_nombre ?? "Pastor",
+          pastor_foto: String(reader.result),
+          email_contacto: iglesia.email_contacto ?? iglesia.email_admin,
+        });
+        const actualizada = iglesiaPorId(iglesia.id);
+        if (actualizada) onCambio(actualizada);
+      } catch (err) {
+        setErrorFoto(err instanceof Error ? err.message : "No pudimos actualizar tu foto.");
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   useEffect(() => {
     setMiembros(miembrosDe(iglesia.id));
@@ -317,6 +345,48 @@ function Panel({
                   )}
                 </form>
               </section>
+
+              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-card p-4 shadow-[var(--shadow-elegant)]">
+                <input
+                  ref={fotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={elegirFotoPerfil}
+                />
+                <button
+                  type="button"
+                  onClick={() => fotoInputRef.current?.click()}
+                  aria-label="Cambiar foto de perfil"
+                  title="Cambiar foto de perfil"
+                  className="relative shrink-0 rounded-full transition hover:opacity-80"
+                >
+                  {iglesia.pastor_foto ? (
+                    <img
+                      src={iglesia.pastor_foto}
+                      alt="Tu foto de perfil"
+                      className="h-11 w-11 rounded-full border border-border object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <UserRound className="h-5 w-5" aria-hidden />
+                    </span>
+                  )}
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onSalir}
+                  className="ml-auto text-muted-foreground hover:text-destructive"
+                >
+                  Salir
+                </Button>
+              </div>
+              {errorFoto && (
+                <p role="alert" className="mt-2 text-sm text-destructive">
+                  {errorFoto}
+                </p>
+              )}
             </SheetContent>
           </Sheet>
           <img
@@ -327,17 +397,9 @@ function Panel({
             className="h-9 w-9 shrink-0 rounded-full border border-white/30 object-cover"
           />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] tracking-[0.25em] uppercase opacity-70">Pastor</p>
+            <p className="text-[11px] tracking-[0.25em] uppercase opacity-70">Iglesia</p>
             <h1 className="truncate text-base font-bold">{iglesia.nombre}</h1>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onSalir}
-            className="text-navy-foreground hover:bg-white/10"
-          >
-            Salir
-          </Button>
         </div>
       </header>
 
@@ -458,8 +520,6 @@ function Panel({
           <CalendarioMes items={porFecha} />
         )}
 
-
-        <PerfilPastorCard iglesia={iglesia} onCambio={onCambio} />
       </main>
 
       <MenuBar links={iglesia.links} />
@@ -638,124 +698,5 @@ function NuevoAnuncio({
         Publicar anuncio
       </button>
     </form>
-  );
-}
-
-function PerfilPastorCard({
-  iglesia,
-  onCambio,
-}: {
-  iglesia: Iglesia;
-  onCambio: (i: Iglesia) => void;
-}) {
-  const [form, setForm] = useState({
-    pastor_nombre: iglesia.pastor_nombre ?? "",
-    pastor_foto: iglesia.pastor_foto ?? "",
-    email_contacto: iglesia.email_contacto ?? iglesia.email_admin,
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [guardado, setGuardado] = useState(false);
-
-  useEffect(() => {
-    setForm({
-      pastor_nombre: iglesia.pastor_nombre ?? "",
-      pastor_foto: iglesia.pastor_foto ?? "",
-      email_contacto: iglesia.email_contacto ?? iglesia.email_admin,
-    });
-  }, [iglesia]);
-
-  function elegirFoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 1_500_000) {
-      setError("La foto es muy grande. Elegí una de menos de 1,5 MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, pastor_foto: String(reader.result) }));
-    reader.readAsDataURL(file);
-  }
-
-  function guardar(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    try {
-      actualizarPerfilPastor(iglesia.id, form);
-      const actualizada = iglesiaPorId(iglesia.id);
-      if (actualizada) onCambio(actualizada);
-      setGuardado(true);
-      setTimeout(() => setGuardado(false), 2500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No pudimos guardar tu perfil.");
-    }
-  }
-
-  return (
-    <section className="rounded-3xl bg-card p-5 shadow-[var(--shadow-elegant)]">
-      <h2 className="flex items-center gap-2 text-base font-bold text-navy">
-        <UserRound className="h-4 w-4 text-primary" aria-hidden />
-        Mi perfil
-      </h2>
-      <form onSubmit={guardar} className="mt-4 space-y-4">
-        <div className="flex items-center gap-4">
-          {form.pastor_foto ? (
-            <img
-              src={form.pastor_foto}
-              alt="Tu foto de perfil"
-              className="h-20 w-20 rounded-full border border-border object-cover"
-            />
-          ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <UserRound className="h-8 w-8" aria-hidden />
-            </div>
-          )}
-          <div className="flex-1 space-y-2">
-            <Label htmlFor="foto">Foto</Label>
-            <Input id="foto" type="file" accept="image/*" onChange={elegirFoto} />
-            {form.pastor_foto && (
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, pastor_foto: "" })}
-                className="text-xs text-muted-foreground underline"
-              >
-                Quitar foto
-              </button>
-            )}
-          </div>
-        </div>
-        <div>
-          <Label htmlFor="pastor_nombre">Nombre</Label>
-          <Input
-            id="pastor_nombre"
-            value={form.pastor_nombre}
-            onChange={(e) => setForm({ ...form, pastor_nombre: e.target.value })}
-            placeholder="Pastor Juan Pérez"
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="email_contacto">Correo de contacto</Label>
-          <Input
-            id="email_contacto"
-            type="email"
-            value={form.email_contacto}
-            onChange={(e) => setForm({ ...form, email_contacto: e.target.value })}
-            placeholder="pastor@iglesia.com"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Este correo lo ven tus miembros para escribirte.
-          </p>
-        </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <Button type="submit" variant="gold" size="lg" className="w-full sm:w-auto">
-          Guardar mi perfil
-        </Button>
-        {guardado && <p className="text-sm text-primary">Perfil actualizado.</p>}
-      </form>
-    </section>
   );
 }
