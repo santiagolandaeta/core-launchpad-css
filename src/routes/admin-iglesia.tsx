@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -198,6 +198,34 @@ function Panel({
   const [vista, setVista] = useState<"lista" | "calendario">("lista");
   const [formAbierto, setFormAbierto] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [errorFoto, setErrorFoto] = useState<string | null>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+
+  function elegirFotoPerfil(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1_500_000) {
+      setErrorFoto("La foto es muy grande. Elegí una de menos de 1,5 MB.");
+      return;
+    }
+    setErrorFoto(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        actualizarPerfilPastor(iglesia.id, {
+          pastor_nombre: iglesia.pastor_nombre ?? "Pastor",
+          pastor_foto: String(reader.result),
+          email_contacto: iglesia.email_contacto ?? iglesia.email_admin,
+        });
+        const actualizada = iglesiaPorId(iglesia.id);
+        if (actualizada) onCambio(actualizada);
+      } catch (err) {
+        setErrorFoto(err instanceof Error ? err.message : "No pudimos actualizar tu foto.");
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   useEffect(() => {
     setMiembros(miembrosDe(iglesia.id));
