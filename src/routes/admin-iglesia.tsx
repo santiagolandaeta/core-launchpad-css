@@ -197,6 +197,7 @@ function Panel({
   const [publicaciones, setPublicaciones] = useState<Contenido[]>([]);
   const [vista, setVista] = useState<"lista" | "calendario">("lista");
   const [formAbierto, setFormAbierto] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   useEffect(() => {
     setMiembros(miembrosDe(iglesia.id));
