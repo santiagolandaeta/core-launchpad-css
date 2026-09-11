@@ -1,159 +1,230 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Eye, EyeOff, Lock, Mail, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Github, Layout, Palette, Zap } from "lucide-react";
+  buscarIglesias,
+  getIglesias,
+  iglesiaPorId,
+  ingresar,
+  seed,
+  sesionActual,
+  type Iglesia,
+} from "@/lib/manantial";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
   head: () => ({
     meta: [
-      { title: "Starter — Modern React App" },
+      { title: "Manantial de Bendiciones | Inicia sesión" },
       {
         name: "description",
         content:
-          "A clean TanStack Start, Tailwind CSS and shadcn/ui starter ready for GitHub integration.",
+          "Entrada principal de Manantial de Bendiciones: inicia sesión con tu correo y contraseña y accedé a los anuncios de tu iglesia.",
       },
-      {
-        property: "og:title",
-        content: "Starter — Modern React App",
-      },
+      { property: "og:title", content: "Manantial de Bendiciones | Inicia sesión" },
       {
         property: "og:description",
-        content:
-          "A clean TanStack Start, Tailwind CSS and shadcn/ui starter ready for GitHub integration.",
+        content: "Una sola entrada para todos: cada miembro ve el contenido de su propia sede.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Index,
+  component: Landing,
 });
 
-function Index() {
+function Landing() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [ver, setVer] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [todas, setTodas] = useState<Iglesia[]>([]);
+  const [buscando, setBuscando] = useState(false);
+
+  useEffect(() => {
+    seed();
+    setTodas(getIglesias());
+    const s = sesionActual();
+    if (s?.rol === "super_admin") {
+      navigate({ to: "/super-admin" });
+      return;
+    }
+    const igl = iglesiaPorId(s?.iglesia_id ?? null);
+    if (s && igl) navigate({ to: "/c/$slug", params: { slug: igl.slug } });
+  }, [navigate]);
+
+  const resultados = useMemo(() => (q.trim() ? buscarIglesias(q) : todas), [q, todas]);
+
+  function entrar(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      const m = ingresar(email, password);
+      if (m.rol === "super_admin") {
+        navigate({ to: "/super-admin" });
+        return;
+      }
+      const igl = iglesiaPorId(m.iglesia_id);
+      if (!igl) throw new Error("Tu cuenta todavía no tiene una iglesia asignada.");
+      navigate({ to: "/c/$slug", params: { slug: igl.slug } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos iniciar sesión.");
+    }
+  }
+
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Zap className="h-4 w-4" />
+    <main className="gradient-night flex min-h-screen flex-col items-center px-6 py-12">
+      <div className="w-full max-w-sm">
+        <img
+          src="/images/logo.png"
+          alt="Logo de Manantial de Bendiciones"
+          width={128}
+          height={128}
+          className="mx-auto h-32 w-32 rounded-[28px] shadow-[var(--shadow-elegant)]"
+        />
+        <h1 className="mt-7 text-center text-2xl font-black tracking-tight">
+          MANANTIAL DE BENDICIONES
+        </h1>
+        <p className="mt-2 text-center text-base text-muted-foreground">
+          Inicia sesión para continuar
+        </p>
+
+        <form onSubmit={entrar} className="mt-8 space-y-4">
+          <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm focus-within:border-primary">
+            <label htmlFor="email" className="text-xs text-muted-foreground">
+              Correo electrónico
+            </label>
+            <div className="flex items-center gap-3">
+              <Mail className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tucorreo@gmail.com"
+                required
+                className="border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+              />
             </div>
-            <span className="text-lg font-semibold tracking-tight">
-              Starter
-            </span>
           </div>
-          <nav className="flex items-center gap-4">
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noreferrer"
-              className="text-muted-foreground hover:text-foreground"
+
+          <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm focus-within:border-primary">
+            <label htmlFor="password" className="text-xs text-muted-foreground">
+              Contraseña
+            </label>
+            <div className="flex items-center gap-3">
+              <Lock className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+              <Input
+                id="password"
+                type={ver ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Tu contraseña"
+                required
+                className="border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+              />
+              <button
+                type="button"
+                onClick={() => setVer((v) => !v)}
+                aria-label={ver ? "Ocultar contraseña" : "Mostrar contraseña"}
+                className="text-muted-foreground"
+              >
+                {ver ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <button
+              type="button"
+              onClick={() =>
+                setAviso("Pedile a tu pastor que restablezca tu contraseña desde su panel.")
+              }
+              className="text-sm font-semibold text-primary"
             >
-              <Github className="h-5 w-5" />
-              <span className="sr-only">GitHub</span>
-            </a>
-          </nav>
-        </div>
-      </header>
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
 
-      <main className="flex-1">
-        <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-3xl text-center">
-            <Badge variant="secondary" className="mb-6">
-              Ready for GitHub
-            </Badge>
-            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
-              Build faster with a clean foundation
-            </h1>
-            <p className="mt-6 text-lg text-muted-foreground">
-              TanStack Start, Tailwind CSS and shadcn/ui are wired up and ready
-              to go. Connect your repository and start shipping.
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
             </p>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <Button asChild size="lg">
-                <Link to="/">
-                  Get started
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button variant="outline" size="lg" asChild>
-                <a
-                  href="https://github.com"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Github className="mr-2 h-4 w-4" />
-                  Connect GitHub
-                </a>
-              </Button>
-            </div>
-          </div>
-        </section>
+          )}
+          {aviso && <p className="text-sm text-muted-foreground">{aviso}</p>}
 
-        <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <Layout className="mb-2 h-6 w-6 text-primary" />
-                <CardTitle>TanStack Start</CardTitle>
-                <CardDescription>
-                  Type-safe routing, server functions and data loading out of
-                  the box.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  File-based routing, SSR-ready layouts and a modern React 19
-                  runtime.
-                </p>
-              </CardContent>
-            </Card>
+          <Button type="submit" variant="gold" size="lg" className="h-14 w-full rounded-full text-base">
+            Iniciar sesión
+          </Button>
+        </form>
 
-            <Card>
-              <CardHeader>
-                <Palette className="mb-2 h-6 w-6 text-primary" />
-                <CardTitle>Tailwind CSS v4</CardTitle>
-                <CardDescription>
-                  CSS-first configuration with semantic design tokens.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Utility-first styling with light and dark mode support built
-                  in.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="sm:col-span-2 lg:col-span-1">
-              <CardHeader>
-                <Zap className="mb-2 h-6 w-6 text-primary" />
-                <CardTitle>shadcn/ui</CardTitle>
-                <CardDescription>
-                  Accessible, composable components already installed.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Buttons, cards, dialogs, forms and more — ready to customize.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-      </main>
-
-      <footer className="border-t border-border py-8">
-        <div className="mx-auto max-w-7xl px-4 text-center text-sm text-muted-foreground sm:px-6 lg:px-8">
-          Built with Lovable — ready for your next idea.
+        <div className="mt-8 text-center">
+          <button
+            type="button"
+            onClick={() => setBuscando((b) => !b)}
+            className="text-sm font-semibold text-primary underline"
+          >
+            No tengo cuenta: buscar mi iglesia
+          </button>
         </div>
-      </footer>
-    </div>
+
+        {buscando && (
+          <section className="card-night mt-5 rounded-2xl p-4 text-left">
+            <label htmlFor="buscar" className="text-sm font-semibold text-primary">
+              Busca tu iglesia por nombre
+            </label>
+            <div className="mt-2 flex items-center gap-2">
+              <Search className="h-5 w-5 text-muted-foreground" aria-hidden />
+              <Input
+                id="buscar"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Ej: Caseros"
+                autoComplete="off"
+              />
+            </div>
+            <ul className="mt-4 space-y-3">
+              {resultados.map((i) => (
+                <li
+                  key={i.id}
+                  className="flex flex-col gap-2 rounded-xl border border-border/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-semibold">{i.nombre}</p>
+                    <p className="text-xs text-muted-foreground">/c/{i.slug}</p>
+                  </div>
+                  <Button asChild variant="goldOutline" size="sm">
+                    <Link to="/c/$slug" params={{ slug: i.slug }}>
+                      Entrar a esta iglesia
+                    </Link>
+                  </Button>
+                </li>
+              ))}
+              {resultados.length === 0 && (
+                <li className="text-sm text-muted-foreground">
+                  No encontramos una iglesia con ese nombre.
+                </li>
+              )}
+            </ul>
+          </section>
+        )}
+
+        <div className="mt-8 flex flex-col items-center gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/admin-iglesia">Soy pastor / admin de iglesia</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/super-admin">Acceso Super Admin</Link>
+          </Button>
+        </div>
+      </div>
+    </main>
   );
 }
