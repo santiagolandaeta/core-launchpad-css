@@ -15,6 +15,7 @@ import {
   Users,
   Youtube,
 } from "lucide-react";
+import { CalendarioMes } from "@/components/CalendarioMes";
 import { MenuBar } from "@/components/MenuBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
