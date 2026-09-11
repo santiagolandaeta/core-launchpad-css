@@ -256,26 +256,67 @@ function Panel({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuAbierto(false);
-                  setTimeout(() => {
-                    document
-                      .getElementById("configurar-barra-menu")
-                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }, 250);
-                }}
-                className="mt-4 flex w-full items-center gap-3 rounded-2xl bg-navy px-4 py-4 text-left text-base font-bold text-navy-foreground transition hover:opacity-90"
-              >
-                <Settings2 className="h-5 w-5" aria-hidden />
-                Configurar mi barra de menú
-              </button>
+              <details className="mt-4 rounded-2xl bg-card p-4 shadow-[var(--shadow-elegant)]">
+                <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-navy">
+                  <Users className="h-4 w-4 text-primary" aria-hidden /> Mis miembros
+                </summary>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[260px] text-left text-sm">
+                    <thead className="text-xs tracking-wide text-muted-foreground uppercase">
+                      <tr>
+                        <th className="py-2 pr-3">Nombre</th>
+                        <th className="py-2">Registro</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {miembros.map((m) => (
+                        <tr key={m.id} className="border-t border-border/60">
+                          <td className="py-2 pr-3 font-semibold">{m.nombre}</td>
+                          <td className="py-2 text-muted-foreground">
+                            {new Date(m.fecha_registro).toLocaleDateString("es-AR")}
+                          </td>
+                        </tr>
+                      ))}
+                      {miembros.length === 0 && (
+                        <tr>
+                          <td colSpan={2} className="py-3 text-muted-foreground">
+                            Todavía nadie se registró con tu código.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
 
-              <p className="mt-3 text-xs text-muted-foreground">
-                Ahí podés cambiar los links de Facebook, YouTube, Instagram, radio y libros que ven
-                tus miembros.
-              </p>
+              <section className="mt-4 rounded-2xl bg-card p-4 shadow-[var(--shadow-elegant)]">
+                <h2 className="flex items-center gap-2 text-base font-bold text-navy">
+                  <Settings2 className="h-4 w-4 text-primary" aria-hidden />
+                  Configurar mi barra de menú
+                </h2>
+                <form onSubmit={guardar} className="mt-4 space-y-4">
+                  {CAMPOS.map(({ key, label, Icon }) => (
+                    <div key={key}>
+                      <Label htmlFor={`menu-${key}`} className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-primary" aria-hidden />
+                        {label}
+                      </Label>
+                      <Input
+                        id={`menu-${key}`}
+                        value={links[key]}
+                        onChange={(e) => setLinks({ ...links, [key]: e.target.value })}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  ))}
+                  <Button type="submit" variant="gold" size="lg" className="w-full">
+                    Guardar
+                  </Button>
+                  {guardado && (
+                    <p className="text-sm text-primary">Links actualizados para tus miembros.</p>
+                  )}
+                </form>
+              </section>
             </SheetContent>
           </Sheet>
           <img
@@ -418,79 +459,7 @@ function Panel({
         )}
 
 
-        <section className="rounded-3xl bg-card p-6 text-center shadow-[var(--shadow-elegant)]">
-          <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Users className="h-4 w-4" aria-hidden /> Miembros con la App
-          </p>
-          <p className="text-gradient-gold mt-2 text-5xl font-black">{miembros.length}</p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Código de acceso: {iglesia.codigo_acceso} · /c/{iglesia.slug}
-          </p>
-        </section>
-
-        <section className="rounded-3xl bg-card p-5 shadow-[var(--shadow-elegant)]">
-          <h2 className="text-base font-bold text-navy">Mis miembros</h2>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[420px] text-left text-sm">
-              <thead className="text-xs tracking-wide text-muted-foreground uppercase">
-                <tr>
-                  <th className="py-2 pr-3">Nombre</th>
-                  <th className="py-2 pr-3">Email</th>
-                  <th className="py-2">Descargó la app</th>
-                </tr>
-              </thead>
-              <tbody>
-                {miembros.map((m) => (
-                  <tr key={m.id} className="border-t border-border/60">
-                    <td className="py-2 pr-3 font-semibold">{m.nombre}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">{m.email}</td>
-                    <td className="py-2 text-muted-foreground">
-                      {new Date(m.fecha_registro).toLocaleDateString("es-AR")}
-                    </td>
-                  </tr>
-                ))}
-                {miembros.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="py-3 text-muted-foreground">
-                      Todavía nadie se registró con tu código.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
         <PerfilPastorCard iglesia={iglesia} onCambio={onCambio} />
-
-        <section
-          id="configurar-barra-menu"
-          className="scroll-mt-24 rounded-3xl bg-card p-5 shadow-[var(--shadow-elegant)]"
-        >
-          <h2 className="text-base font-bold text-navy">Configurar Mi Barra de Menu</h2>
-          <form onSubmit={guardar} className="mt-4 space-y-4">
-            {CAMPOS.map(({ key, label, Icon }) => (
-              <div key={key}>
-                <Label htmlFor={key} className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-primary" aria-hidden />
-                  {label}
-                </Label>
-                <Input
-                  id={key}
-                  value={links[key]}
-                  onChange={(e) => setLinks({ ...links, [key]: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
-            ))}
-            <Button type="submit" variant="gold" size="lg" className="w-full sm:w-auto">
-              Guardar
-            </Button>
-            {guardado && (
-              <p className="text-sm text-primary">Links actualizados para tus miembros.</p>
-            )}
-          </form>
-        </section>
       </main>
 
       <MenuBar links={iglesia.links} />
