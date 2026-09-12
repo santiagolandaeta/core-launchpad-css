@@ -500,9 +500,9 @@ function NuevoAnuncio({
     reader.readAsDataURL(file);
   }
 
-  function enviar(e: React.FormEvent) {
+  async function enviar(e: React.FormEvent) {
     e.preventDefault();
-    crearContenido({
+    const item = crearContenido({
       iglesia_id: iglesiaId,
       tipo: form.tipo,
       titulo: form.titulo.trim(),
@@ -511,6 +511,17 @@ function NuevoAnuncio({
       ...(form.fecha ? { fecha: form.fecha } : {}),
       ...(form.imagen ? { imagen: form.imagen } : {}),
     });
+    try {
+      await crearNotificacion({
+        iglesia_id: iglesiaId,
+        contenido_id: item.id,
+        tipo: item.tipo,
+        titulo: item.titulo,
+        detalle: item.detalle,
+      });
+    } catch {
+      setError("El anuncio se publicó, pero no pudimos avisar a los miembros.");
+    }
     onCreado();
   }
 
