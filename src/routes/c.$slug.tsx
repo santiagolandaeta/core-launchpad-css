@@ -6,6 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  contarNoLeidas,
+  listarNotificaciones,
+  marcarLeidas,
+  type Notificacion,
+} from "@/lib/notificaciones";
+import {
   buscarIglesias,
   contenidosDe,
   ingresar,
@@ -231,18 +246,61 @@ function Miembros({
 }) {
   const [q, setQ] = useState("");
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [panelNotis, setPanelNotis] = useState(false);
+  const [destacado, setDestacado] = useState<string | null>(null);
   const contenidos = useMemo<Contenido[]>(() => contenidosDe(iglesia.id), [iglesia.id]);
   const anuncios = contenidos.filter((c) => c.tipo === "anuncio");
   const eventos = contenidos.filter((c) => c.tipo === "evento");
   const mensajes = contenidos.filter((c) => c.tipo === "mensaje_pastor");
   const publicaciones = [...eventos, ...anuncios, ...mensajes];
   const encontradas = q.trim() ? buscarIglesias(q) : [];
+  const noLeidas = contarNoLeidas(iglesia.id, notificaciones);
   const iniciales = user.nombre
     .split(" ")
     .slice(0, 2)
     .map((p) => p[0])
     .join("")
     .toUpperCase();
+
+  useEffect(() => {
+    let activo = true;
+    const cargar = () =>
+      listarNotificaciones(iglesia.id)
+        .then((lista) => {
+          if (activo) setNotificaciones(lista);
+        })
+        .catch(() => undefined);
+    cargar();
+    const canal = supabase
+      .channel(`notis-${iglesia.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notificaciones" },
+        () => cargar(),
+      )
+      .subscribe();
+    return () => {
+      activo = false;
+      supabase.removeChannel(canal);
+    };
+  }, [iglesia.id]);
+
+  function abrirNotificaciones() {
+    setPanelNotis(true);
+    marcarLeidas(iglesia.id);
+    setNotificaciones((lista) => [...lista]);
+  }
+
+  function abrirAnuncio(contenidoId: string) {
+    setPanelNotis(false);
+    setDestacado(contenidoId);
+    setTimeout(() => {
+      document
+        .getElementById(`pub-${contenidoId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 250);
+  }
 
   return (
     <div className="min-h-screen bg-surface-muted pb-28">
@@ -258,12 +316,54 @@ function Miembros({
             <Menu className="h-6 w-6" aria-hidden />
           </button>
           <h1 className="min-w-0 flex-1 truncate text-lg font-bold">{iglesia.nombre}</h1>
-          <span className="relative rounded-lg p-1">
-            <Bell className="h-6 w-6" aria-hidden />
-            <span className="absolute -top-0.5 -right-0.5 rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-              {publicaciones.length}
-            </span>
-          </span>
+          <Sheet open={panelNotis} onOpenChange={(v) => (v ? abrirNotificaciones() : setPanelNotis(false))}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                aria-label="Ver notificaciones"
+                className="relative rounded-lg p-1 transition hover:bg-white/10"
+              >
+                <Bell className="h-6 w-6" aria-hidden />
+                {noLeidas > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                    {noLeidas}
+                  </span>
+                )}
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[88vw] max-w-sm overflow-y-auto">
+              <SheetHeader className="text-left">
+                <SheetTitle className="text-navy">Notificaciones</SheetTitle>
+                <SheetDescription>Avisos de {iglesia.nombre}</SheetDescription>
+              </SheetHeader>
+              <ul className="mt-5 space-y-3">
+                {notificaciones.map((n) => (
+                  <li key={n.id}>
+                    <button
+                      type="button"
+                      onClick={() => abrirAnuncio(n.contenido_id)}
+                      className="w-full rounded-2xl bg-card p-3.5 text-left shadow-[var(--shadow-elegant)] transition hover:opacity-90"
+                    >
+                      <p className="text-sm font-bold text-navy">{n.titulo}</p>
+                      {n.detalle && (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {n.detalle}
+                        </p>
+                      )}
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        {new Date(n.creada_en).toLocaleString("es-AR")}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+                {notificaciones.length === 0 && (
+                  <li className="text-sm text-muted-foreground">
+                    Todavía no hay notificaciones.
+                  </li>
+                )}
+              </ul>
+            </SheetContent>
+          </Sheet>
           <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-primary bg-white/10 text-sm font-bold">
             {iniciales || "M"}
           </span>
@@ -335,7 +435,7 @@ function Miembros({
         )}
 
         {publicaciones.map((c) => (
-          <Publicacion key={c.id} item={c} />
+          <Publicacion key={c.id} item={c} destacado={destacado === c.id} />
         ))}
       </main>
 
@@ -352,9 +452,14 @@ const ETIQUETA: Record<Contenido["tipo"], string> = {
   bautismo: "Bautismo",
 };
 
-function Publicacion({ item }: { item: Contenido }) {
+function Publicacion({ item, destacado }: { item: Contenido; destacado?: boolean }) {
   return (
-    <article className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-elegant)]">
+    <article
+      id={`pub-${item.id}`}
+      className={`overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-elegant)] ${
+        destacado ? "ring-2 ring-primary" : ""
+      }`}
+    >
       {item.imagen && (
         <img src={item.imagen} alt={item.titulo} className="h-44 w-full object-cover" />
       )}

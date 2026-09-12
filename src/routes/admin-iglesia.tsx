@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -13,7 +13,7 @@ import {
   Radio,
   Settings2,
   Trash2,
-  UserRound,
+  
   Users,
   Youtube,
 } from "lucide-react";
@@ -31,9 +31,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { crearNotificacion } from "@/lib/notificaciones";
 import {
   actualizarLinks,
-  actualizarPerfilPastor,
   alternarFijado,
   contenidosDe,
   crearContenido,
@@ -198,34 +198,6 @@ function Panel({
   const [vista, setVista] = useState<"lista" | "calendario">("lista");
   const [formAbierto, setFormAbierto] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
-  const [errorFoto, setErrorFoto] = useState<string | null>(null);
-  const fotoInputRef = useRef<HTMLInputElement>(null);
-
-  function elegirFotoPerfil(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 1_500_000) {
-      setErrorFoto("La foto es muy grande. Elegí una de menos de 1,5 MB.");
-      return;
-    }
-    setErrorFoto(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        actualizarPerfilPastor(iglesia.id, {
-          pastor_nombre: iglesia.pastor_nombre ?? "Pastor",
-          pastor_foto: String(reader.result),
-          email_contacto: iglesia.email_contacto ?? iglesia.email_admin,
-        });
-        const actualizada = iglesiaPorId(iglesia.id);
-        if (actualizada) onCambio(actualizada);
-      } catch (err) {
-        setErrorFoto(err instanceof Error ? err.message : "No pudimos actualizar tu foto.");
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  }
 
   useEffect(() => {
     setMiembros(miembrosDe(iglesia.id));
@@ -346,68 +318,18 @@ function Panel({
                 </form>
               </section>
 
-              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-card p-3.5 shadow-[var(--shadow-elegant)]">
-                <button
-                  type="button"
-                  onClick={() => fotoInputRef.current?.click()}
-                  aria-label="Cambiar foto de perfil"
-                  title="Cambiar foto de perfil"
-                  className="relative shrink-0 rounded-full transition hover:opacity-80"
-                >
-                  {iglesia.pastor_foto ? (
-                    <img
-                      src={iglesia.pastor_foto}
-                      alt="Tu foto de perfil"
-                      className="h-10 w-10 rounded-full border border-border object-cover"
-                    />
-                  ) : (
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <UserRound className="h-5 w-5" aria-hidden />
-                    </span>
-                  )}
-                </button>
+              <div className="mt-4 rounded-2xl bg-card p-3.5 shadow-[var(--shadow-elegant)]">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={onSalir}
-                  className="ml-auto text-muted-foreground hover:text-destructive"
+                  className="w-full text-muted-foreground hover:text-destructive"
                 >
                   Salir
                 </Button>
               </div>
-              {errorFoto && (
-                <p role="alert" className="mt-2 text-sm text-destructive">
-                  {errorFoto}
-                </p>
-              )}
             </SheetContent>
           </Sheet>
-          <input
-            ref={fotoInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={elegirFotoPerfil}
-          />
-          <button
-            type="button"
-            onClick={() => fotoInputRef.current?.click()}
-            aria-label="Cambiar foto de perfil"
-            title="Cambiar foto de perfil"
-            className="shrink-0 rounded-full transition hover:opacity-80"
-          >
-            {iglesia.pastor_foto ? (
-              <img
-                src={iglesia.pastor_foto}
-                alt="Tu foto de perfil"
-                className="h-8 w-8 rounded-full border border-white/30 object-cover"
-              />
-            ) : (
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10">
-                <UserRound className="h-4 w-4" aria-hidden />
-              </span>
-            )}
-          </button>
           <img
             src={iglesia.logo}
             alt={`Logo de ${iglesia.nombre}`}
@@ -578,9 +500,9 @@ function NuevoAnuncio({
     reader.readAsDataURL(file);
   }
 
-  function enviar(e: React.FormEvent) {
+  async function enviar(e: React.FormEvent) {
     e.preventDefault();
-    crearContenido({
+    const item = crearContenido({
       iglesia_id: iglesiaId,
       tipo: form.tipo,
       titulo: form.titulo.trim(),
@@ -589,6 +511,17 @@ function NuevoAnuncio({
       ...(form.fecha ? { fecha: form.fecha } : {}),
       ...(form.imagen ? { imagen: form.imagen } : {}),
     });
+    try {
+      await crearNotificacion({
+        iglesia_id: iglesiaId,
+        contenido_id: item.id,
+        tipo: item.tipo,
+        titulo: item.titulo,
+        detalle: item.detalle,
+      });
+    } catch {
+      setError("El anuncio se publicó, pero no pudimos avisar a los miembros.");
+    }
     onCreado();
   }
 
