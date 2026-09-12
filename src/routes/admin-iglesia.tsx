@@ -31,9 +31,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { crearNotificacion } from "@/lib/notificaciones";
 import {
   actualizarLinks,
-  actualizarPerfilPastor,
   alternarFijado,
   contenidosDe,
   crearContenido,
