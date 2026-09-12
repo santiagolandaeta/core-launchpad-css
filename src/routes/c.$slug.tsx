@@ -301,12 +301,54 @@ function Miembros({
             <Menu className="h-6 w-6" aria-hidden />
           </button>
           <h1 className="min-w-0 flex-1 truncate text-lg font-bold">{iglesia.nombre}</h1>
-          <span className="relative rounded-lg p-1">
-            <Bell className="h-6 w-6" aria-hidden />
-            <span className="absolute -top-0.5 -right-0.5 rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-              {publicaciones.length}
-            </span>
-          </span>
+          <Sheet open={panelNotis} onOpenChange={(v) => (v ? abrirNotificaciones() : setPanelNotis(false))}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                aria-label="Ver notificaciones"
+                className="relative rounded-lg p-1 transition hover:bg-white/10"
+              >
+                <Bell className="h-6 w-6" aria-hidden />
+                {noLeidas > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                    {noLeidas}
+                  </span>
+                )}
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[88vw] max-w-sm overflow-y-auto">
+              <SheetHeader className="text-left">
+                <SheetTitle className="text-navy">Notificaciones</SheetTitle>
+                <SheetDescription>Avisos de {iglesia.nombre}</SheetDescription>
+              </SheetHeader>
+              <ul className="mt-5 space-y-3">
+                {notificaciones.map((n) => (
+                  <li key={n.id}>
+                    <button
+                      type="button"
+                      onClick={() => abrirAnuncio(n.contenido_id)}
+                      className="w-full rounded-2xl bg-card p-3.5 text-left shadow-[var(--shadow-elegant)] transition hover:opacity-90"
+                    >
+                      <p className="text-sm font-bold text-navy">{n.titulo}</p>
+                      {n.detalle && (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {n.detalle}
+                        </p>
+                      )}
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        {new Date(n.creada_en).toLocaleString("es-AR")}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+                {notificaciones.length === 0 && (
+                  <li className="text-sm text-muted-foreground">
+                    Todavía no hay notificaciones.
+                  </li>
+                )}
+              </ul>
+            </SheetContent>
+          </Sheet>
           <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-primary bg-white/10 text-sm font-bold">
             {iniciales || "M"}
           </span>
