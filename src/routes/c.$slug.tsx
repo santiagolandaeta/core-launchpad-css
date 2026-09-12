@@ -437,9 +437,14 @@ const ETIQUETA: Record<Contenido["tipo"], string> = {
   bautismo: "Bautismo",
 };
 
-function Publicacion({ item }: { item: Contenido }) {
+function Publicacion({ item, destacado }: { item: Contenido; destacado?: boolean }) {
   return (
-    <article className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-elegant)]">
+    <article
+      id={`pub-${item.id}`}
+      className={`overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-elegant)] ${
+        destacado ? "ring-2 ring-primary" : ""
+      }`}
+    >
       {item.imagen && (
         <img src={item.imagen} alt={item.titulo} className="h-44 w-full object-cover" />
       )}
