@@ -231,18 +231,61 @@ function Miembros({
 }) {
   const [q, setQ] = useState("");
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [panelNotis, setPanelNotis] = useState(false);
+  const [destacado, setDestacado] = useState<string | null>(null);
   const contenidos = useMemo<Contenido[]>(() => contenidosDe(iglesia.id), [iglesia.id]);
   const anuncios = contenidos.filter((c) => c.tipo === "anuncio");
   const eventos = contenidos.filter((c) => c.tipo === "evento");
   const mensajes = contenidos.filter((c) => c.tipo === "mensaje_pastor");
   const publicaciones = [...eventos, ...anuncios, ...mensajes];
   const encontradas = q.trim() ? buscarIglesias(q) : [];
+  const noLeidas = contarNoLeidas(iglesia.id, notificaciones);
   const iniciales = user.nombre
     .split(" ")
     .slice(0, 2)
     .map((p) => p[0])
     .join("")
     .toUpperCase();
+
+  useEffect(() => {
+    let activo = true;
+    const cargar = () =>
+      listarNotificaciones(iglesia.id)
+        .then((lista) => {
+          if (activo) setNotificaciones(lista);
+        })
+        .catch(() => undefined);
+    cargar();
+    const canal = supabase
+      .channel(`notis-${iglesia.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notificaciones" },
+        () => cargar(),
+      )
+      .subscribe();
+    return () => {
+      activo = false;
+      supabase.removeChannel(canal);
+    };
+  }, [iglesia.id]);
+
+  function abrirNotificaciones() {
+    setPanelNotis(true);
+    marcarLeidas(iglesia.id);
+    setNotificaciones((lista) => [...lista]);
+  }
+
+  function abrirAnuncio(contenidoId: string) {
+    setPanelNotis(false);
+    setDestacado(contenidoId);
+    setTimeout(() => {
+      document
+        .getElementById(`pub-${contenidoId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 250);
+  }
 
   return (
     <div className="min-h-screen bg-surface-muted pb-28">
