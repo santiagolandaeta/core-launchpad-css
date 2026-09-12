@@ -420,7 +420,7 @@ function Miembros({
         )}
 
         {publicaciones.map((c) => (
-          <Publicacion key={c.id} item={c} />
+          <Publicacion key={c.id} item={c} destacado={destacado === c.id} />
         ))}
       </main>
 
