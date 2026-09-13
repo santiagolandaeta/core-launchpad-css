@@ -206,8 +206,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      es_pastor_de: { Args: { _iglesia: string }; Returns: boolean }
-      rol_actual: { Args: never; Returns: string }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
