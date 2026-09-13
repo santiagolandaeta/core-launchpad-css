@@ -53,7 +53,10 @@ export function MenuBar({ links }: { links: LinksMenu }) {
     >
       <ul className="mx-auto grid max-w-3xl grid-cols-5 gap-1 px-2 py-2 sm:gap-3 sm:px-4 sm:py-3">
         {ITEMS.map(({ key, label, Icon, tile, icono }) => {
-          const href = links?.[key]?.trim();
+          const href =
+            key === "radio"
+              ? "https://www.visionmanantial.com"
+              : links?.[key]?.trim();
           const contenido = (
             <>
               <span
