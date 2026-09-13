@@ -1,8 +1,8 @@
-// Capa de datos local (localStorage) para MANANTIAL DE BENDICIONES v3.
-// Multi-iglesia independiente: cada iglesia tiene slug, código de acceso,
-// admin propio y links de menú. Todo se filtra siempre por iglesia_id.
+// Capa de datos real sobre Lovable Cloud (Postgres + Auth).
+// Nada se guarda en memoria ni en arrays locales: todo vive en la base de datos.
+import { supabase } from "@/integrations/supabase/client";
 
-export type Rol = "super_admin" | "admin_iglesia" | "miembro";
+export type Rol = "super_admin" | "pastor" | "miembro";
 
 export type LinksMenu = {
   facebook: string;
@@ -18,14 +18,14 @@ export type Iglesia = {
   slug: string;
   codigo_acceso: string;
   email_admin: string;
-  password_admin: string;
+  admin_uid: string | null;
   links: LinksMenu;
   logo: string;
   color: string;
   creado_en: string;
-  pastor_nombre?: string;
-  pastor_foto?: string;
-  email_contacto?: string;
+  pastor_nombre: string;
+  pastor_foto: string;
+  email_contacto: string;
 };
 
 export type PerfilPastor = {
@@ -34,13 +34,19 @@ export type PerfilPastor = {
   email_contacto: string;
 };
 
+export type Perfil = {
+  id: string;
+  email: string;
+  nombre: string;
+  rol: Rol;
+  iglesia_id: string | null;
+};
+
 export type Miembro = {
   id: string;
   nombre: string;
   email: string;
-  password: string;
-  iglesia_id: string | null;
-  rol: Rol;
+  iglesia_id: string;
   fecha_registro: string;
 };
 
@@ -56,16 +62,6 @@ export type Contenido = {
   creado_en: string;
 };
 
-const K = {
-  iglesias: "mdb.v3.iglesias",
-  miembros: "mdb.v3.miembros",
-  contenidos: "mdb.v3.contenidos",
-  sesion: "mdb.v3.sesion",
-  sesionAdmin: "mdb.v3.sesion_admin",
-};
-
-const LOGO_DEFAULT = "/images/logo.png";
-const GOLD = "#1877F2";
 const LINKS_VACIOS: LinksMenu = {
   facebook: "",
   youtube: "",
@@ -74,22 +70,7 @@ const LINKS_VACIOS: LinksMenu = {
   libros: "",
 };
 
-const isBrowser = () => typeof window !== "undefined";
-const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
-
-function read<T>(key: string, fallback: T): T {
-  if (!isBrowser()) return fallback;
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function write(key: string, value: unknown) {
-  if (isBrowser()) window.localStorage.setItem(key, JSON.stringify(value));
-}
+/* ---------------------------------- utils --------------------------------- */
 
 export function slugify(nombre: string) {
   const limpio = nombre
@@ -99,288 +80,280 @@ export function slugify(nombre: string) {
     .replace(/manantial de bendiciones/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return limpio || "sede-" + uid().slice(0, 4);
+  return limpio || "sede-" + Math.random().toString(36).slice(2, 6);
 }
 
 export function generarCodigo(slug: string) {
   const prefijo = (slug.replace(/[^a-z]/g, "").slice(0, 3) || "mdb").toUpperCase();
-  const numero = String(Math.floor(1000 + Math.random() * 9000));
-  return `${prefijo}-${numero}`;
+  return `${prefijo}-${String(Math.floor(1000 + Math.random() * 9000))}`;
 }
 
-export const getIglesias = () => read<Iglesia[]>(K.iglesias, []);
-export const getMiembros = () => read<Miembro[]>(K.miembros, []);
-export const getContenidos = () => read<Contenido[]>(K.contenidos, []);
-
-export const iglesiaPorSlug = (slug: string) =>
-  getIglesias().find((i) => i.slug === slug.toLowerCase()) ?? null;
-export const iglesiaPorId = (id: string | null) =>
-  id ? (getIglesias().find((i) => i.id === id) ?? null) : null;
-
-export function buscarIglesias(texto: string) {
-  const q = texto.trim().toLowerCase();
-  if (!q) return [];
-  return getIglesias().filter(
-    (i) => i.nombre.toLowerCase().includes(q) || i.slug.includes(q),
-  );
-}
-
-export function seed() {
-  if (!isBrowser() || window.localStorage.getItem(K.iglesias)) return;
-  const ahora = new Date().toISOString();
-
-  const base = [
-    { id: "igl_central", nombre: "Manantial de Bendiciones Central", slug: "central", codigo: "CEN-1207" },
-    { id: "igl_caseros", nombre: "Manantial de Bendiciones Caseros", slug: "caseros", codigo: "CAS-4821" },
-    { id: "igl_ramos", nombre: "Manantial de Bendiciones Ramos Mejía", slug: "ramos-mejia", codigo: "RAM-3390" },
-  ];
-
-  const iglesias: Iglesia[] = base.map((b) => ({
-    id: b.id,
-    nombre: b.nombre,
-    slug: b.slug,
-    codigo_acceso: b.codigo,
-    email_admin: `${b.slug}@manantial.app`,
-    password_admin: "pastor123",
-    links: {
-      facebook: `https://facebook.com/manantial.${b.slug}`,
-      youtube: `https://youtube.com/@manantial.${b.slug}`,
-      instagram: `https://instagram.com/manantial.${b.slug}`,
-      radio: "",
-      libros: "",
-    },
-    logo: LOGO_DEFAULT,
-    color: GOLD,
-    creado_en: ahora,
-  }));
-  write(K.iglesias, iglesias);
-
-  const miembros: Miembro[] = [
-    {
-      id: uid(),
-      nombre: "Super Admin",
-      email: "super@manantial.app",
-      password: "admin123",
-      iglesia_id: null,
-      rol: "super_admin",
-      fecha_registro: ahora,
-    },
-    ...iglesias.flatMap((i, idx) => [
-      {
-        id: uid(),
-        nombre: `Hermana Ana ${idx + 1}`,
-        email: `ana${idx + 1}@mail.com`,
-        password: "123456",
-        iglesia_id: i.id,
-        rol: "miembro" as const,
-        fecha_registro: ahora,
-      },
-      {
-        id: uid(),
-        nombre: `Hermano Luis ${idx + 1}`,
-        email: `luis${idx + 1}@mail.com`,
-        password: "123456",
-        iglesia_id: i.id,
-        rol: "miembro" as const,
-        fecha_registro: ahora,
-      },
-    ]),
-  ];
-  write(K.miembros, miembros);
-
-  write(
-    K.contenidos,
-    iglesias.flatMap((i) => [
-      {
-        id: uid(),
-        iglesia_id: i.id,
-        tipo: "anuncio" as const,
-        titulo: "Culto de celebración",
-        detalle: `Domingos 11:00 hs en ${i.nombre}. Traé a tu familia.`,
-        creado_en: ahora,
-      },
-      {
-        id: uid(),
-        iglesia_id: i.id,
-        tipo: "evento" as const,
-        titulo: "Noche de alabanza",
-        detalle: "Encuentro de adoración con el grupo de jóvenes.",
-        fecha: "2026-09-19",
-        creado_en: ahora,
-      },
-      {
-        id: uid(),
-        iglesia_id: i.id,
-        tipo: "mensaje_pastor" as const,
-        titulo: "Palabra del pastor",
-        detalle: "Dios sostiene a su pueblo. Esta semana caminemos en fe y gratitud.",
-        creado_en: ahora,
-      },
-    ]),
-  );
-}
-
-export function crearIglesia(input: {
+type FilaIglesia = {
+  id: string;
   nombre: string;
+  slug: string;
+  codigo_acceso: string;
   email_admin: string;
-  password_admin: string;
-}): Iglesia {
-  const nombre = input.nombre.trim();
-  const email = input.email_admin.trim().toLowerCase();
-  if (nombre.length < 3) throw new Error("Escribí el nombre completo de la iglesia.");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Email de administrador inválido.");
-  if (input.password_admin.length < 6)
-    throw new Error("La contraseña del administrador necesita al menos 6 caracteres.");
-  if (getIglesias().some((i) => i.email_admin === email))
-    throw new Error("Ese email de administrador ya está en uso.");
+  admin_uid: string | null;
+  links: unknown;
+  logo: string;
+  color: string;
+  creado_en: string;
+  pastor_nombre: string;
+  pastor_foto: string;
+  email_contacto: string;
+};
 
-  let slug = slugify(nombre);
-  if (iglesiaPorSlug(slug)) slug = `${slug}-${uid().slice(0, 3)}`;
+function aIglesia(fila: FilaIglesia): Iglesia {
+  const links = (fila.links ?? {}) as Partial<LinksMenu>;
+  return { ...fila, links: { ...LINKS_VACIOS, ...links } };
+}
 
-  const iglesia: Iglesia = {
-    id: "igl_" + uid(),
-    nombre,
-    slug,
-    codigo_acceso: generarCodigo(slug),
-    email_admin: email,
-    password_admin: input.password_admin,
-    links: { ...LINKS_VACIOS },
-    logo: LOGO_DEFAULT,
-    color: GOLD,
-    creado_en: new Date().toISOString(),
+function aContenido(fila: Record<string, unknown>): Contenido {
+  return {
+    id: String(fila['id']),
+    iglesia_id: String(fila['iglesia_id']),
+    tipo: fila['tipo'] as Contenido["tipo"],
+    titulo: String(fila['titulo'] ?? ""),
+    detalle: String(fila['detalle'] ?? ""),
+    creado_en: String(fila['creado_en']),
+    fijado: Boolean(fila['fijado']),
+    ...(fila['fecha'] ? { fecha: String(fila['fecha']) } : {}),
+    ...(fila['imagen'] ? { imagen: String(fila['imagen']) } : {}),
   };
-  write(K.iglesias, [...getIglesias(), iglesia]);
-  return iglesia;
 }
 
-export function actualizarLinks(iglesia_id: string, links: LinksMenu) {
-  write(
-    K.iglesias,
-    getIglesias().map((i) => (i.id === iglesia_id ? { ...i, links } : i)),
-  );
+/* --------------------------------- iglesias -------------------------------- */
+
+export async function listarIglesias(): Promise<Iglesia[]> {
+  const { data, error } = await supabase.from("iglesias").select("*").order("nombre");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((f) => aIglesia(f as FilaIglesia));
 }
 
-export function actualizarPerfilPastor(iglesia_id: string, perfil: PerfilPastor) {
+export async function iglesiaPorSlug(slug: string): Promise<Iglesia | null> {
+  const { data, error } = await supabase
+    .from("iglesias")
+    .select("*")
+    .eq("slug", slug.toLowerCase())
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? aIglesia(data as FilaIglesia) : null;
+}
+
+export async function iglesiaPorId(id: string | null): Promise<Iglesia | null> {
+  if (!id) return null;
+  const { data, error } = await supabase.from("iglesias").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? aIglesia(data as FilaIglesia) : null;
+}
+
+export async function buscarIglesias(texto: string): Promise<Iglesia[]> {
+  const q = texto.trim();
+  if (!q) return [];
+  const { data, error } = await supabase
+    .from("iglesias")
+    .select("*")
+    .or(`nombre.ilike.%${q}%,slug.ilike.%${q}%`)
+    .order("nombre");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((f) => aIglesia(f as FilaIglesia));
+}
+
+// Equivalente a onSnapshot: se vuelve a leer la tabla ante cualquier cambio.
+export function suscribirIglesias(cb: () => void) {
+  const canal = supabase
+    .channel(`iglesias-${Math.random().toString(36).slice(2)}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "iglesias" }, () => cb())
+    .on("postgres_changes", { event: "*", schema: "public", table: "miembros" }, () => cb())
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(canal);
+  };
+}
+
+export async function actualizarLinks(iglesia_id: string, links: LinksMenu) {
+  const { error } = await supabase.from("iglesias").update({ links }).eq("id", iglesia_id);
+  if (error) throw new Error(error.message);
+}
+
+export async function actualizarPerfilPastor(iglesia_id: string, perfil: PerfilPastor) {
   const nombre = perfil.pastor_nombre.trim();
   const email = perfil.email_contacto.trim().toLowerCase();
   if (nombre.length < 3) throw new Error("Escribí tu nombre completo.");
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new Error("El correo de contacto no es válido.");
-  write(
-    K.iglesias,
-    getIglesias().map((i) =>
-      i.id === iglesia_id
-        ? {
-            ...i,
-            pastor_nombre: nombre,
-            pastor_foto: perfil.pastor_foto.trim(),
-            email_contacto: email,
-          }
-        : i,
-    ),
-  );
+  const { error } = await supabase
+    .from("iglesias")
+    .update({ pastor_nombre: nombre, pastor_foto: perfil.pastor_foto.trim(), email_contacto: email })
+    .eq("id", iglesia_id);
+  if (error) throw new Error(error.message);
 }
 
-export function eliminarIglesia(iglesia_id: string) {
-  write(K.iglesias, getIglesias().filter((i) => i.id !== iglesia_id));
-  write(K.miembros, getMiembros().filter((m) => m.iglesia_id !== iglesia_id));
-  write(K.contenidos, getContenidos().filter((c) => c.iglesia_id !== iglesia_id));
+/* --------------------------------- miembros -------------------------------- */
+
+export async function miembrosDe(iglesia_id: string): Promise<Miembro[]> {
+  const { data, error } = await supabase
+    .from("miembros")
+    .select("id, nombre, email, iglesia_id, fecha_registro")
+    .eq("iglesia_id", iglesia_id)
+    .order("fecha_registro", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Miembro[];
 }
 
-export function registrar(input: {
+export async function totalMiembros(): Promise<number> {
+  const { count, error } = await supabase
+    .from("miembros")
+    .select("id", { count: "exact", head: true });
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+export async function contarMiembros(iglesia_id: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("miembros")
+    .select("id", { count: "exact", head: true })
+    .eq("iglesia_id", iglesia_id);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/* ----------------------------- cuentas / sesión ---------------------------- */
+
+async function perfilDe(userId: string): Promise<Perfil | null> {
+  const { data, error } = await supabase
+    .from("usuarios")
+    .select("id, email, nombre, rol, iglesia_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? ({ ...data, rol: data.rol as Rol } as Perfil) : null;
+}
+
+export async function perfilActual(): Promise<Perfil | null> {
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return null;
+  return perfilDe(data.user.id);
+}
+
+export async function ingresar(email: string, password: string): Promise<Perfil> {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  if (error) throw new Error("Email o contraseña incorrectos.");
+  const perfil = await perfilDe(data.user.id);
+  if (!perfil) throw new Error("Tu cuenta todavía no tiene perfil asignado.");
+  return perfil;
+}
+
+export async function salir() {
+  await supabase.auth.signOut();
+}
+
+export async function registrarMiembro(input: {
   nombre: string;
   email: string;
   password: string;
   codigo: string;
   slug: string;
-}): Miembro {
-  const iglesia = iglesiaPorSlug(input.slug);
+}): Promise<Perfil> {
+  const iglesia = await iglesiaPorSlug(input.slug);
   if (!iglesia) throw new Error("Esta iglesia no existe.");
-  if (input.codigo.trim().toUpperCase() !== iglesia.codigo_acceso)
+  if (input.codigo.trim().toUpperCase() !== iglesia.codigo_acceso.toUpperCase())
     throw new Error(`Ese código no corresponde a ${iglesia.nombre}.`);
+
   const email = input.email.trim().toLowerCase();
-  if (getMiembros().some((m) => m.email === email)) throw new Error("Ese email ya está registrado.");
-  const miembro: Miembro = {
-    id: uid(),
-    nombre: input.nombre.trim(),
+  const nombre = input.nombre.trim();
+  const { data, error } = await supabase.auth.signUp({
     email,
     password: input.password,
-    iglesia_id: iglesia.id,
-    rol: "miembro",
-    fecha_registro: new Date().toISOString(),
-  };
-  write(K.miembros, [...getMiembros(), miembro]);
-  write(K.sesion, miembro.id);
-  return miembro;
-}
-
-export function ingresar(email: string, password: string, slug?: string): Miembro {
-  const miembro = getMiembros().find(
-    (m) => m.email === email.trim().toLowerCase() && m.password === password,
-  );
-  if (!miembro) throw new Error("Email o contraseña incorrectos.");
-  if (slug) {
-    const iglesia = iglesiaPorSlug(slug);
-    if (miembro.rol !== "super_admin" && miembro.iglesia_id !== iglesia?.id)
-      throw new Error("Tu cuenta pertenece a otra iglesia.");
+    options: { emailRedirectTo: window.location.origin, data: { nombre } },
+  });
+  if (error) {
+    throw new Error(
+      error.message.toLowerCase().includes("already")
+        ? "Ese email ya está registrado. Probá ingresando."
+        : error.message,
+    );
   }
-  write(K.sesion, miembro.id);
-  return miembro;
+  const userId = data.user?.id;
+  if (!userId || !data.session) {
+    await supabase.auth.signInWithPassword({ email, password: input.password });
+  }
+  const { data: sesion } = await supabase.auth.getUser();
+  const uid = sesion.user?.id ?? userId;
+  if (!uid) throw new Error("No pudimos crear tu cuenta.");
+
+  const { error: e1 } = await supabase
+    .from("usuarios")
+    .upsert({ id: uid, email, nombre, rol: "miembro", iglesia_id: iglesia.id });
+  if (e1) throw new Error(e1.message);
+
+  const { error: e2 } = await supabase
+    .from("miembros")
+    .insert({ user_id: uid, iglesia_id: iglesia.id, nombre, email, rol: "miembro" });
+  if (e2 && !e2.message.includes("duplicate")) throw new Error(e2.message);
+
+  return { id: uid, email, nombre, rol: "miembro", iglesia_id: iglesia.id };
 }
 
-export function salir() {
-  if (isBrowser()) window.localStorage.removeItem(K.sesion);
+/* -------------------------------- contenidos ------------------------------- */
+
+export async function contenidosDe(iglesia_id: string): Promise<Contenido[]> {
+  const { data, error } = await supabase
+    .from("contenidos")
+    .select("*")
+    .eq("iglesia_id", iglesia_id)
+    .order("fijado", { ascending: false })
+    .order("creado_en", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((f) => aContenido(f as Record<string, unknown>));
 }
 
-export function sesionActual(): Miembro | null {
-  const id = read<string | null>(K.sesion, null);
-  if (!id) return null;
-  return getMiembros().find((m) => m.id === id) ?? null;
+export function suscribirContenidos(iglesia_id: string, cb: () => void) {
+  const canal = supabase
+    .channel(`contenidos-${iglesia_id}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "contenidos" }, () => cb())
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(canal);
+  };
 }
 
-// Sesión del admin de iglesia (panel /admin-iglesia)
-export function ingresarAdminIglesia(email: string, password: string): Iglesia {
-  const mail = email.trim().toLowerCase();
-  const iglesia = getIglesias().find(
-    (i) => i.email_admin === mail && i.password_admin === password,
-  );
-  if (!iglesia) throw new Error("Email o contraseña incorrectos.");
-  write(K.sesionAdmin, iglesia.id);
-  return iglesia;
+export async function crearContenido(input: {
+  iglesia_id: string;
+  tipo: Contenido["tipo"];
+  titulo: string;
+  detalle: string;
+  fecha?: string;
+  imagen?: string;
+  fijado?: boolean;
+}): Promise<Contenido> {
+  const { data, error } = await supabase
+    .from("contenidos")
+    .insert({
+      iglesia_id: input.iglesia_id,
+      tipo: input.tipo,
+      titulo: input.titulo,
+      detalle: input.detalle,
+      fijado: input.fijado ?? false,
+      fecha: input.fecha ? input.fecha : null,
+      imagen: input.imagen ? input.imagen : null,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return aContenido(data as Record<string, unknown>);
 }
 
-export function sesionAdminIglesia(): Iglesia | null {
-  const id = read<string | null>(K.sesionAdmin, null);
-  return id ? iglesiaPorId(id) : null;
+export async function eliminarContenido(id: string) {
+  const { error } = await supabase.from("contenidos").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
-export function salirAdminIglesia() {
-  if (isBrowser()) window.localStorage.removeItem(K.sesionAdmin);
+export async function alternarFijado(id: string, fijado: boolean) {
+  const { error } = await supabase.from("contenidos").update({ fijado: !fijado }).eq("id", id);
+  if (error) throw new Error(error.message);
 }
-
-export function crearContenido(input: Omit<Contenido, "id" | "creado_en">): Contenido {
-  const item: Contenido = { ...input, id: uid(), creado_en: new Date().toISOString() };
-  write(K.contenidos, [item, ...getContenidos()]);
-  return item;
-}
-
-export function eliminarContenido(id: string) {
-  write(K.contenidos, getContenidos().filter((c) => c.id !== id));
-}
-
-export function alternarFijado(id: string) {
-  write(
-    K.contenidos,
-    getContenidos().map((c) => (c.id === id ? { ...c, fijado: !c.fijado } : c)),
-  );
-}
-
-export const contenidosDe = (iglesia_id: string) =>
-  getContenidos()
-    .filter((c) => c.iglesia_id === iglesia_id)
-    .sort((a, b) => Number(!!b.fijado) - Number(!!a.fijado));
-
-export const miembrosDe = (iglesia_id: string) =>
-  getMiembros().filter((m) => m.iglesia_id === iglesia_id && m.rol === "miembro");
-
-export const totalMiembros = () => getMiembros().filter((m) => m.rol === "miembro").length;
