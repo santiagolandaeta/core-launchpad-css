@@ -14,6 +14,136 @@ export type Database = {
   }
   public: {
     Tables: {
+      contenidos: {
+        Row: {
+          creado_en: string
+          detalle: string
+          fecha: string | null
+          fijado: boolean
+          id: string
+          iglesia_id: string
+          imagen: string | null
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          creado_en?: string
+          detalle?: string
+          fecha?: string | null
+          fijado?: boolean
+          id?: string
+          iglesia_id: string
+          imagen?: string | null
+          tipo?: string
+          titulo: string
+        }
+        Update: {
+          creado_en?: string
+          detalle?: string
+          fecha?: string | null
+          fijado?: boolean
+          id?: string
+          iglesia_id?: string
+          imagen?: string | null
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contenidos_iglesia_id_fkey"
+            columns: ["iglesia_id"]
+            isOneToOne: false
+            referencedRelation: "iglesias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      iglesias: {
+        Row: {
+          admin_uid: string | null
+          codigo_acceso: string
+          color: string
+          creado_en: string
+          email_admin: string
+          email_contacto: string
+          id: string
+          links: Json
+          logo: string
+          nombre: string
+          pastor_foto: string
+          pastor_nombre: string
+          slug: string
+        }
+        Insert: {
+          admin_uid?: string | null
+          codigo_acceso: string
+          color?: string
+          creado_en?: string
+          email_admin: string
+          email_contacto?: string
+          id?: string
+          links?: Json
+          logo?: string
+          nombre: string
+          pastor_foto?: string
+          pastor_nombre?: string
+          slug: string
+        }
+        Update: {
+          admin_uid?: string | null
+          codigo_acceso?: string
+          color?: string
+          creado_en?: string
+          email_admin?: string
+          email_contacto?: string
+          id?: string
+          links?: Json
+          logo?: string
+          nombre?: string
+          pastor_foto?: string
+          pastor_nombre?: string
+          slug?: string
+        }
+        Relationships: []
+      }
+      miembros: {
+        Row: {
+          email: string
+          fecha_registro: string
+          id: string
+          iglesia_id: string
+          nombre: string
+          rol: string
+          user_id: string | null
+        }
+        Insert: {
+          email: string
+          fecha_registro?: string
+          id?: string
+          iglesia_id: string
+          nombre: string
+          rol?: string
+          user_id?: string | null
+        }
+        Update: {
+          email?: string
+          fecha_registro?: string
+          id?: string
+          iglesia_id?: string
+          nombre?: string
+          rol?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "miembros_iglesia_id_fkey"
+            columns: ["iglesia_id"]
+            isOneToOne: false
+            referencedRelation: "iglesias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notificaciones: {
         Row: {
           contenido_id: string
@@ -41,6 +171,33 @@ export type Database = {
           iglesia_id?: string
           tipo?: string
           titulo?: string
+        }
+        Relationships: []
+      }
+      usuarios: {
+        Row: {
+          creado_en: string
+          email: string
+          id: string
+          iglesia_id: string | null
+          nombre: string
+          rol: string
+        }
+        Insert: {
+          creado_en?: string
+          email: string
+          id: string
+          iglesia_id?: string | null
+          nombre?: string
+          rol?: string
+        }
+        Update: {
+          creado_en?: string
+          email?: string
+          id?: string
+          iglesia_id?: string | null
+          nombre?: string
+          rol?: string
         }
         Relationships: []
       }
