@@ -78,9 +78,18 @@ function AdminIglesia() {
   const [iglesia, setIglesia] = useState<Iglesia | null>(null);
 
   useEffect(() => {
-    seed();
-    setIglesia(sesionAdminIglesia());
-    setListo(true);
+    let activo = true;
+    perfilActual()
+      .then(async (p) => {
+        const igl = p && p.rol === "pastor" ? await iglesiaPorId(p.iglesia_id) : null;
+        if (!activo) return;
+        setIglesia(igl);
+        setListo(true);
+      })
+      .catch(() => setListo(true));
+    return () => {
+      activo = false;
+    };
   }, []);
 
   if (!listo) return <main className="min-h-screen bg-surface-muted" />;
@@ -90,8 +99,8 @@ function AdminIglesia() {
     <Panel
       iglesia={iglesia}
       onCambio={(i) => setIglesia(i)}
-      onSalir={() => {
-        salirAdminIglesia();
+      onSalir={async () => {
+        await salir();
         setIglesia(null);
       }}
     />
@@ -101,14 +110,22 @@ function AdminIglesia() {
 function LoginAdmin({ onEntrar }: { onEntrar: (i: Iglesia) => void }) {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
-  function enviar(e: React.FormEvent) {
+  async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setEnviando(true);
     try {
-      onEntrar(ingresarAdminIglesia(form.email, form.password));
+      const perfil = await ingresar(form.email, form.password);
+      if (perfil.rol !== "pastor") throw new Error("Esta cuenta no es de pastor.");
+      const igl = await iglesiaPorId(perfil.iglesia_id);
+      if (!igl) throw new Error("Tu cuenta todavía no tiene una iglesia asignada.");
+      onEntrar(igl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos ingresar.");
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -142,12 +159,9 @@ function LoginAdmin({ onEntrar }: { onEntrar: (i: Iglesia) => void }) {
               {error}
             </p>
           )}
-          <Button type="submit" variant="gold" size="lg" className="w-full">
-            Entrar a mi panel
+          <Button type="submit" variant="gold" size="lg" className="w-full" disabled={enviando}>
+            {enviando ? "Ingresando..." : "Entrar a mi panel"}
           </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Demo: caseros@manantial.app / pastor123
-          </p>
         </form>
         <div className="mt-5 text-center">
           <Link to="/" className="text-xs text-muted-foreground underline">
@@ -158,6 +172,7 @@ function LoginAdmin({ onEntrar }: { onEntrar: (i: Iglesia) => void }) {
     </main>
   );
 }
+
 
 const CAMPOS: { key: keyof LinksMenu; label: string; Icon: typeof Facebook }[] = [
   { key: "facebook", label: "Link Facebook", Icon: Facebook },
