@@ -1,21 +1,22 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Church, Copy, Plus, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { crearIglesia as crearIglesiaFn, eliminarIglesia as eliminarIglesiaFn } from "@/lib/iglesias.functions";
 import {
-  crearIglesia,
-  eliminarIglesia,
-  getIglesias,
   ingresar,
+  listarIglesias,
   miembrosDe,
+  perfilActual,
   salir,
-  seed,
-  sesionActual,
+  suscribirIglesias,
   totalMiembros,
   type Iglesia,
   type Miembro,
+  type Perfil,
 } from "@/lib/manantial";
 
 export const Route = createFileRoute("/super-admin")({
@@ -41,40 +42,51 @@ export const Route = createFileRoute("/super-admin")({
 
 function SuperAdmin() {
   const [listo, setListo] = useState(false);
-  const [user, setUser] = useState<Miembro | null>(null);
+  const [user, setUser] = useState<Perfil | null>(null);
 
   useEffect(() => {
-    seed();
-    const s = sesionActual();
-    setUser(s && s.rol === "super_admin" ? s : null);
-    setListo(true);
+    let activo = true;
+    perfilActual()
+      .then((p) => {
+        if (!activo) return;
+        setUser(p && p.rol === "super_admin" ? p : null);
+        setListo(true);
+      })
+      .catch(() => setListo(true));
+    return () => {
+      activo = false;
+    };
   }, []);
 
   if (!listo) return <main className="gradient-night min-h-screen" />;
   if (!user) return <LoginSuper onEntrar={setUser} />;
   return (
     <Panel
-      onSalir={() => {
-        salir();
+      onSalir={async () => {
+        await salir();
         setUser(null);
       }}
     />
   );
 }
 
-function LoginSuper({ onEntrar }: { onEntrar: (m: Miembro) => void }) {
+function LoginSuper({ onEntrar }: { onEntrar: (m: Perfil) => void }) {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
-  function enviar(e: React.FormEvent) {
+  async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setEnviando(true);
     try {
-      const m = ingresar(form.email, form.password);
+      const m = await ingresar(form.email, form.password);
       if (m.rol !== "super_admin") throw new Error("Esta cuenta no es de Super Admin.");
       onEntrar(m);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos ingresar.");
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -108,12 +120,9 @@ function LoginSuper({ onEntrar }: { onEntrar: (m: Miembro) => void }) {
               {error}
             </p>
           )}
-          <Button type="submit" variant="gold" size="lg" className="w-full">
-            Entrar
+          <Button type="submit" variant="gold" size="lg" className="w-full" disabled={enviando}>
+            {enviando ? "Ingresando..." : "Entrar"}
           </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Demo: super@manantial.app / admin123
-          </p>
         </form>
         <div className="mt-5 text-center">
           <Link to="/" className="text-xs text-muted-foreground underline">
@@ -126,33 +135,66 @@ function LoginSuper({ onEntrar }: { onEntrar: (m: Miembro) => void }) {
 }
 
 function Panel({ onSalir }: { onSalir: () => void }) {
+  const crearEnServidor = useServerFn(crearIglesiaFn);
+  const borrarEnServidor = useServerFn(eliminarIglesiaFn);
   const [iglesias, setIglesias] = useState<Iglesia[]>([]);
+  const [conteos, setConteos] = useState<Record<string, number>>({});
   const [miembros, setMiembros] = useState(0);
   const [abierto, setAbierto] = useState(false);
   const [form, setForm] = useState({ nombre: "", email_admin: "", password_admin: "" });
   const [nueva, setNueva] = useState<Iglesia | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
   const [copiado, setCopiado] = useState<string | null>(null);
   const [verMiembros, setVerMiembros] = useState<Iglesia | null>(null);
+  const [listaMiembros, setListaMiembros] = useState<Miembro[]>([]);
 
-  function refrescar() {
-    setIglesias(getIglesias());
-    setMiembros(totalMiembros());
-  }
+  const refrescar = useCallback(async () => {
+    const [lista, total] = await Promise.all([listarIglesias(), totalMiembros()]);
+    setIglesias(lista);
+    setMiembros(total);
+    const pares = await Promise.all(
+      lista.map(async (i) => [i.id, (await miembrosDe(i.id)).length] as const),
+    );
+    setConteos(Object.fromEntries(pares));
+  }, []);
 
-  useEffect(refrescar, []);
+  useEffect(() => {
+    void refrescar();
+    const cortar = suscribirIglesias(() => void refrescar());
+    return cortar;
+  }, [refrescar]);
 
-  function crear(e: React.FormEvent) {
+  useEffect(() => {
+    if (!verMiembros) {
+      setListaMiembros([]);
+      return;
+    }
+    let activo = true;
+    miembrosDe(verMiembros.id)
+      .then((l) => {
+        if (activo) setListaMiembros(l);
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, [verMiembros]);
+
+  async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setEnviando(true);
     try {
-      const iglesia = crearIglesia(form);
+      const iglesia = (await crearEnServidor({ data: form })) as Iglesia;
       setNueva(iglesia);
       setForm({ nombre: "", email_admin: "", password_admin: "" });
       setAbierto(false);
-      refrescar();
+      await refrescar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos crear la iglesia.");
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -166,11 +208,16 @@ function Panel({ onSalir }: { onSalir: () => void }) {
     }
   }
 
-  function borrar(i: Iglesia) {
+  async function borrar(i: Iglesia) {
     if (!window.confirm(`¿Eliminar ${i.nombre} con sus miembros y contenido?`)) return;
-    eliminarIglesia(i.id);
-    if (verMiembros?.id === i.id) setVerMiembros(null);
-    refrescar();
+    try {
+      await borrarEnServidor({ data: { id: i.id } });
+      if (verMiembros?.id === i.id) setVerMiembros(null);
+      if (nueva?.id === i.id) setNueva(null);
+      await refrescar();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos eliminar la iglesia.");
+    }
   }
 
   const origen = typeof window !== "undefined" ? window.location.origin : "";
@@ -180,7 +227,7 @@ function Panel({ onSalir }: { onSalir: () => void }) {
       <header className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-5 pt-8">
         <div>
           <p className="text-xs tracking-[0.3em] text-muted-foreground uppercase">Panel general</p>
-          <h1 className="text-gradient-gold text-2xl font-black">Super Admin</h1>
+          <h1 className="text-gradient-gold text-2xl font-black">Súper Administrador</h1>
         </div>
         <Button variant="ghost" onClick={onSalir}>
           Salir
@@ -244,8 +291,8 @@ function Panel({ onSalir }: { onSalir: () => void }) {
                 {error}
               </p>
             )}
-            <Button type="submit" variant="gold">
-              Guardar iglesia
+            <Button type="submit" variant="gold" disabled={enviando}>
+              {enviando ? "Guardando..." : "Guardar iglesia"}
             </Button>
           </form>
         )}
@@ -299,7 +346,7 @@ function Panel({ onSalir }: { onSalir: () => void }) {
                     <td className="py-3 pr-3 text-muted-foreground">{i.slug}</td>
                     <td className="py-3 pr-3 font-mono text-primary">{i.codigo_acceso}</td>
                     <td className="py-3 pr-3 text-muted-foreground">{i.email_admin}</td>
-                    <td className="py-3 pr-3 font-bold">{miembrosDe(i.id).length}</td>
+                    <td className="py-3 pr-3 font-bold">{conteos[i.id] ?? 0}</td>
                     <td className="py-3 pr-3">
                       <Link
                         to="/c/$slug"
@@ -342,11 +389,9 @@ function Panel({ onSalir }: { onSalir: () => void }) {
 
         {verMiembros && (
           <section className="card-night rounded-2xl p-5">
-            <h2 className="text-base font-bold text-primary">
-              Miembros de {verMiembros.nombre}
-            </h2>
+            <h2 className="text-base font-bold text-primary">Miembros de {verMiembros.nombre}</h2>
             <ul className="mt-3 space-y-2">
-              {miembrosDe(verMiembros.id).map((m) => (
+              {listaMiembros.map((m) => (
                 <li
                   key={m.id}
                   className="flex flex-wrap justify-between gap-2 rounded-xl border border-border/70 p-3 text-sm"
@@ -358,7 +403,7 @@ function Panel({ onSalir }: { onSalir: () => void }) {
                   </span>
                 </li>
               ))}
-              {miembrosDe(verMiembros.id).length === 0 && (
+              {listaMiembros.length === 0 && (
                 <li className="text-sm text-muted-foreground">Sin miembros todavía.</li>
               )}
             </ul>
