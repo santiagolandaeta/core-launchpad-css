@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff, Lock, Mail, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   buscarIglesias,
-  getIglesias,
   iglesiaPorId,
   ingresar,
-  seed,
-  sesionActual,
+  listarIglesias,
+  perfilActual,
+  suscribirIglesias,
   type Iglesia,
 } from "@/lib/manantial";
 
@@ -42,38 +42,84 @@ function Landing() {
   const [ver, setVer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
   const [q, setQ] = useState("");
-  const [todas, setTodas] = useState<Iglesia[]>([]);
+  const [resultados, setResultados] = useState<Iglesia[]>([]);
   const [buscando, setBuscando] = useState(false);
 
+  // Iglesias siempre desde la base de datos, con actualización en vivo.
   useEffect(() => {
-    seed();
-    setTodas(getIglesias());
-    const s = sesionActual();
-    if (s?.rol === "super_admin") {
-      navigate({ to: "/super-admin" });
-      return;
-    }
-    const igl = iglesiaPorId(s?.iglesia_id ?? null);
-    if (s && igl) navigate({ to: "/c/$slug", params: { slug: igl.slug } });
+    let activo = true;
+    const cargar = () =>
+      listarIglesias()
+        .then((lista) => {
+          if (activo) setResultados(lista);
+        })
+        .catch(() => undefined);
+    cargar();
+    const cortar = suscribirIglesias(cargar);
+    return () => {
+      activo = false;
+      cortar();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!q.trim()) return;
+    let activo = true;
+    buscarIglesias(q)
+      .then((lista) => {
+        if (activo) setResultados(lista);
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, [q]);
+
+  useEffect(() => {
+    let activo = true;
+    perfilActual()
+      .then(async (p) => {
+        if (!activo || !p) return;
+        if (p.rol === "super_admin") {
+          navigate({ to: "/super-admin" });
+          return;
+        }
+        if (p.rol === "pastor") {
+          navigate({ to: "/admin-iglesia" });
+          return;
+        }
+        const igl = await iglesiaPorId(p.iglesia_id);
+        if (activo && igl) navigate({ to: "/c/$slug", params: { slug: igl.slug } });
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
   }, [navigate]);
 
-  const resultados = useMemo(() => (q.trim() ? buscarIglesias(q) : todas), [q, todas]);
-
-  function entrar(e: React.FormEvent) {
+  async function entrar(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setEnviando(true);
     try {
-      const m = ingresar(email, password);
-      if (m.rol === "super_admin") {
+      const p = await ingresar(email, password);
+      if (p.rol === "super_admin") {
         navigate({ to: "/super-admin" });
         return;
       }
-      const igl = iglesiaPorId(m.iglesia_id);
+      if (p.rol === "pastor") {
+        navigate({ to: "/admin-iglesia" });
+        return;
+      }
+      const igl = await iglesiaPorId(p.iglesia_id);
       if (!igl) throw new Error("Tu cuenta todavía no tiene una iglesia asignada.");
       navigate({ to: "/c/$slug", params: { slug: igl.slug } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos iniciar sesión.");
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -160,8 +206,14 @@ function Landing() {
           )}
           {aviso && <p className="text-sm text-muted-foreground">{aviso}</p>}
 
-          <Button type="submit" variant="gold" size="lg" className="h-14 w-full rounded-full text-base">
-            Iniciar sesión
+          <Button
+            type="submit"
+            variant="gold"
+            size="lg"
+            disabled={enviando}
+            className="h-14 w-full rounded-full text-base"
+          >
+            {enviando ? "Ingresando..." : "Iniciar sesión"}
           </Button>
         </form>
 
