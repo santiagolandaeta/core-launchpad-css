@@ -39,16 +39,17 @@ import {
   crearContenido,
   eliminarContenido,
   iglesiaPorId,
-  ingresarAdminIglesia,
+  ingresar,
   miembrosDe,
-  salirAdminIglesia,
-  seed,
-  sesionAdminIglesia,
+  perfilActual,
+  salir,
+  suscribirContenidos,
   type Contenido,
   type Iglesia,
   type LinksMenu,
   type Miembro,
 } from "@/lib/manantial";
+
 
 export const Route = createFileRoute("/admin-iglesia")({
   ssr: false,
