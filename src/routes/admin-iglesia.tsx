@@ -215,24 +215,31 @@ function Panel({
   const [formAbierto, setFormAbierto] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
+  const refrescar = useCallback(async () => {
+    const [lista, contenidos] = await Promise.all([
+      miembrosDe(iglesia.id),
+      contenidosDe(iglesia.id),
+    ]);
+    setMiembros(lista);
+    setPublicaciones(contenidos);
+  }, [iglesia.id]);
+
   useEffect(() => {
-    setMiembros(miembrosDe(iglesia.id));
-    setPublicaciones(contenidosDe(iglesia.id));
     setLinks(iglesia.links);
-  }, [iglesia]);
+    void refrescar();
+    const cortar = suscribirContenidos(iglesia.id, () => void refrescar());
+    return cortar;
+  }, [iglesia, refrescar]);
 
-  function refrescar() {
-    setPublicaciones(contenidosDe(iglesia.id));
-  }
-
-  function guardar(e: React.FormEvent) {
+  async function guardar(e: React.FormEvent) {
     e.preventDefault();
-    actualizarLinks(iglesia.id, links);
-    const actualizada = iglesiaPorId(iglesia.id);
+    await actualizarLinks(iglesia.id, links);
+    const actualizada = await iglesiaPorId(iglesia.id);
     if (actualizada) onCambio(actualizada);
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2500);
   }
+
 
   const porFecha = useMemo(
     () =>
