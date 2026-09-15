@@ -56,6 +56,13 @@ export type Database = {
             referencedRelation: "iglesias"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "contenidos_iglesia_id_fkey"
+            columns: ["iglesia_id"]
+            isOneToOne: false
+            referencedRelation: "iglesias_publicas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       iglesias: {
@@ -142,6 +149,13 @@ export type Database = {
             referencedRelation: "iglesias"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "miembros_iglesia_id_fkey"
+            columns: ["iglesia_id"]
+            isOneToOne: false
+            referencedRelation: "iglesias_publicas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       notificaciones: {
@@ -203,10 +217,48 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      iglesias_publicas: {
+        Row: {
+          color: string | null
+          creado_en: string | null
+          id: string | null
+          links: Json | null
+          logo: string | null
+          nombre: string | null
+          pastor_foto: string | null
+          pastor_nombre: string | null
+          slug: string | null
+        }
+        Insert: {
+          color?: string | null
+          creado_en?: string | null
+          id?: string | null
+          links?: Json | null
+          logo?: string | null
+          nombre?: string | null
+          pastor_foto?: string | null
+          pastor_nombre?: string | null
+          slug?: string | null
+        }
+        Update: {
+          color?: string | null
+          creado_en?: string | null
+          id?: string | null
+          links?: Json | null
+          logo?: string | null
+          nombre?: string | null
+          pastor_foto?: string | null
+          pastor_nombre?: string | null
+          slug?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      codigo_valido: {
+        Args: { _codigo: string; _slug: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
