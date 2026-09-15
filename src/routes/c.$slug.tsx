@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Bell, CalendarDays, Menu, Pin, Search } from "lucide-react";
 import { MenuBar } from "@/components/MenuBar";
@@ -25,13 +25,13 @@ import {
   contenidosDe,
   ingresar,
   iglesiaPorSlug,
-  registrar,
+  perfilActual,
+  registrarMiembro,
   salir,
-  seed,
-  sesionActual,
+  suscribirContenidos,
   type Contenido,
   type Iglesia,
-  type Miembro,
+  type Perfil,
 } from "@/lib/manantial";
 
 export const Route = createFileRoute("/c/$slug")({
@@ -61,15 +61,21 @@ function EntradaIglesia() {
   const navigate = useNavigate();
   const [listo, setListo] = useState(false);
   const [iglesia, setIglesia] = useState<Iglesia | null>(null);
-  const [user, setUser] = useState<Miembro | null>(null);
+  const [user, setUser] = useState<Perfil | null>(null);
 
   useEffect(() => {
-    seed();
-    const igl = iglesiaPorSlug(slug);
-    setIglesia(igl);
-    const s = sesionActual();
-    setUser(s && igl && s.iglesia_id === igl.id ? s : null);
-    setListo(true);
+    let activo = true;
+    (async () => {
+      const igl = await iglesiaPorSlug(slug);
+      const p = await perfilActual();
+      if (!activo) return;
+      setIglesia(igl);
+      setUser(p && igl && (p.iglesia_id === igl.id || p.rol === "super_admin") ? p : null);
+      setListo(true);
+    })().catch(() => setListo(true));
+    return () => {
+      activo = false;
+    };
   }, [slug]);
 
   if (!listo) return <main className="gradient-night min-h-screen" />;
@@ -104,8 +110,8 @@ function EntradaIglesia() {
     <Miembros
       iglesia={iglesia}
       user={user}
-      onSalir={() => {
-        salir();
+      onSalir={async () => {
+        await salir();
         setUser(null);
       }}
     />
@@ -117,23 +123,29 @@ function Acceso({
   onEntrar,
 }: {
   iglesia: Iglesia;
-  onEntrar: (m: Miembro) => void;
+  onEntrar: (m: Perfil) => void;
 }) {
   const [modo, setModo] = useState<"login" | "registro">("login");
   const [form, setForm] = useState({ nombre: "", email: "", password: "", codigo: "" });
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
-  function enviar(e: React.FormEvent) {
+  async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setEnviando(true);
     try {
       const m =
         modo === "login"
-          ? ingresar(form.email, form.password, iglesia.slug)
-          : registrar({ ...form, slug: iglesia.slug });
+          ? await ingresar(form.email, form.password)
+          : await registrarMiembro({ ...form, slug: iglesia.slug });
+      if (m.rol === "miembro" && m.iglesia_id !== iglesia.id)
+        throw new Error("Tu cuenta pertenece a otra iglesia.");
       onEntrar(m);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos completar el ingreso.");
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -219,7 +231,7 @@ function Acceso({
               </p>
             )}
 
-            <Button type="submit" variant="gold" size="lg" className="w-full">
+            <Button type="submit" variant="gold" size="lg" className="w-full" disabled={enviando}>
               {modo === "login" ? "Entrar" : "Crear mi cuenta"}
             </Button>
           </form>
@@ -241,7 +253,7 @@ function Miembros({
   onSalir,
 }: {
   iglesia: Iglesia;
-  user: Miembro;
+  user: Perfil;
   onSalir: () => void;
 }) {
   const [q, setQ] = useState("");
@@ -249,12 +261,12 @@ function Miembros({
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [panelNotis, setPanelNotis] = useState(false);
   const [destacado, setDestacado] = useState<string | null>(null);
-  const contenidos = useMemo<Contenido[]>(() => contenidosDe(iglesia.id), [iglesia.id]);
+  const [contenidos, setContenidos] = useState<Contenido[]>([]);
+  const [encontradas, setEncontradas] = useState<Iglesia[]>([]);
   const anuncios = contenidos.filter((c) => c.tipo === "anuncio");
   const eventos = contenidos.filter((c) => c.tipo === "evento");
   const mensajes = contenidos.filter((c) => c.tipo === "mensaje_pastor");
   const publicaciones = [...eventos, ...anuncios, ...mensajes];
-  const encontradas = q.trim() ? buscarIglesias(q) : [];
   const noLeidas = contarNoLeidas(iglesia.id, notificaciones);
   const iniciales = user.nombre
     .split(" ")
@@ -262,6 +274,38 @@ function Miembros({
     .map((p) => p[0])
     .join("")
     .toUpperCase();
+
+  useEffect(() => {
+    let activo = true;
+    const cargar = () =>
+      contenidosDe(iglesia.id)
+        .then((lista) => {
+          if (activo) setContenidos(lista);
+        })
+        .catch(() => undefined);
+    void cargar();
+    const cortar = suscribirContenidos(iglesia.id, () => void cargar());
+    return () => {
+      activo = false;
+      cortar();
+    };
+  }, [iglesia.id]);
+
+  useEffect(() => {
+    if (!q.trim()) {
+      setEncontradas([]);
+      return;
+    }
+    let activo = true;
+    buscarIglesias(q)
+      .then((lista) => {
+        if (activo) setEncontradas(lista);
+      })
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, [q]);
 
   useEffect(() => {
     let activo = true;
