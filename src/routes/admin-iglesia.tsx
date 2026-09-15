@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -215,24 +215,31 @@ function Panel({
   const [formAbierto, setFormAbierto] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
+  const refrescar = useCallback(async () => {
+    const [lista, contenidos] = await Promise.all([
+      miembrosDe(iglesia.id),
+      contenidosDe(iglesia.id),
+    ]);
+    setMiembros(lista);
+    setPublicaciones(contenidos);
+  }, [iglesia.id]);
+
   useEffect(() => {
-    setMiembros(miembrosDe(iglesia.id));
-    setPublicaciones(contenidosDe(iglesia.id));
     setLinks(iglesia.links);
-  }, [iglesia]);
+    void refrescar();
+    const cortar = suscribirContenidos(iglesia.id, () => void refrescar());
+    return cortar;
+  }, [iglesia, refrescar]);
 
-  function refrescar() {
-    setPublicaciones(contenidosDe(iglesia.id));
-  }
-
-  function guardar(e: React.FormEvent) {
+  async function guardar(e: React.FormEvent) {
     e.preventDefault();
-    actualizarLinks(iglesia.id, links);
-    const actualizada = iglesiaPorId(iglesia.id);
+    await actualizarLinks(iglesia.id, links);
+    const actualizada = await iglesiaPorId(iglesia.id);
     if (actualizada) onCambio(actualizada);
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2500);
   }
+
 
   const porFecha = useMemo(
     () =>
@@ -433,9 +440,9 @@ function Panel({
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        alternarFijado(item.id);
-                        refrescar();
+                      onClick={async () => {
+                        await alternarFijado(item.id, Boolean(item.fijado));
+                        await refrescar();
                       }}
                       className={`flex items-center gap-1 text-xs font-semibold transition ${
                         item.fijado ? "text-primary" : "text-muted-foreground"
@@ -446,9 +453,9 @@ function Panel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        eliminarContenido(item.id);
-                        refrescar();
+                      onClick={async () => {
+                        await eliminarContenido(item.id);
+                        await refrescar();
                       }}
                       aria-label={`Eliminar ${item.titulo}`}
                       className="ml-auto rounded-lg p-2 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
@@ -518,15 +525,22 @@ function NuevoAnuncio({
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
-    const item = crearContenido({
+    setError(null);
+    let item;
+    try {
+      item = await crearContenido({
       iglesia_id: iglesiaId,
       tipo: form.tipo,
       titulo: form.titulo.trim(),
       detalle: form.detalle.trim(),
       fijado: form.fijado,
       ...(form.fecha ? { fecha: form.fecha } : {}),
-      ...(form.imagen ? { imagen: form.imagen } : {}),
-    });
+        ...(form.imagen ? { imagen: form.imagen } : {}),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos publicar el anuncio.");
+      return;
+    }
     try {
       await crearNotificacion({
         iglesia_id: iglesiaId,
