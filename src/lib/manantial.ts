@@ -295,8 +295,13 @@ export async function registrarMiembro(input: {
 }): Promise<Perfil> {
   const iglesia = await iglesiaPorSlug(input.slug);
   if (!iglesia) throw new Error("Esta iglesia no existe.");
-  if (input.codigo.trim().toUpperCase() !== iglesia.codigo_acceso.toUpperCase())
-    throw new Error(`Ese código no corresponde a ${iglesia.nombre}.`);
+  // El código se verifica en el servidor: nunca se descarga al navegador.
+  const { data: valido, error: errCodigo } = await supabase.rpc("codigo_valido", {
+    _slug: input.slug.toLowerCase(),
+    _codigo: input.codigo.trim(),
+  });
+  if (errCodigo) throw new Error(errCodigo.message);
+  if (!valido) throw new Error(`Ese código no corresponde a ${iglesia.nombre}.`);
 
   const email = input.email.trim().toLowerCase();
   const nombre = input.nombre.trim();
