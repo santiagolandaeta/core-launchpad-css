@@ -7,7 +7,7 @@ import {
   buscarIglesias,
   iglesiaPorId,
   ingresar,
-  listarIglesias,
+  listarIglesiasPublicas,
   perfilActual,
   suscribirIglesias,
   type Iglesia,
@@ -51,7 +51,7 @@ function Landing() {
   useEffect(() => {
     let activo = true;
     const cargar = () =>
-      listarIglesias()
+      listarIglesiasPublicas()
         .then((lista) => {
           if (activo) setResultados(lista);
         })
