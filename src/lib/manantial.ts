@@ -125,39 +125,73 @@ function aContenido(fila: Record<string, unknown>): Contenido {
 
 /* --------------------------------- iglesias -------------------------------- */
 
+// Vista pública: no expone código de acceso ni emails.
+function aIglesiaPublica(fila: Record<string, unknown>): Iglesia {
+  const links = (fila['links'] ?? {}) as Partial<LinksMenu>;
+  return {
+    id: String(fila['id']),
+    nombre: String(fila['nombre'] ?? ""),
+    slug: String(fila['slug'] ?? ""),
+    codigo_acceso: "",
+    email_admin: "",
+    admin_uid: null,
+    links: { ...LINKS_VACIOS, ...links },
+    logo: String(fila['logo'] ?? "/images/logo.png"),
+    color: String(fila['color'] ?? "#1877F2"),
+    creado_en: String(fila['creado_en'] ?? ""),
+    pastor_nombre: String(fila['pastor_nombre'] ?? ""),
+    pastor_foto: String(fila['pastor_foto'] ?? ""),
+    email_contacto: "",
+  };
+}
+
+// Datos completos: solo el pastor dueño y el súper administrador pueden leerlos.
 export async function listarIglesias(): Promise<Iglesia[]> {
   const { data, error } = await supabase.from("iglesias").select("*").order("nombre");
   if (error) throw new Error(error.message);
   return (data ?? []).map((f) => aIglesia(f as FilaIglesia));
 }
 
+export async function listarIglesiasPublicas(): Promise<Iglesia[]> {
+  const { data, error } = await supabase.from("iglesias_publicas").select("*").order("nombre");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((f) => aIglesiaPublica(f as Record<string, unknown>));
+}
+
 export async function iglesiaPorSlug(slug: string): Promise<Iglesia | null> {
   const { data, error } = await supabase
-    .from("iglesias")
+    .from("iglesias_publicas")
     .select("*")
     .eq("slug", slug.toLowerCase())
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? aIglesia(data as FilaIglesia) : null;
+  return data ? aIglesiaPublica(data as Record<string, unknown>) : null;
 }
 
 export async function iglesiaPorId(id: string | null): Promise<Iglesia | null> {
   if (!id) return null;
   const { data, error } = await supabase.from("iglesias").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? aIglesia(data as FilaIglesia) : null;
+  if (data) return aIglesia(data as FilaIglesia);
+  const { data: pub, error: e2 } = await supabase
+    .from("iglesias_publicas")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (e2) throw new Error(e2.message);
+  return pub ? aIglesiaPublica(pub as Record<string, unknown>) : null;
 }
 
 export async function buscarIglesias(texto: string): Promise<Iglesia[]> {
   const q = texto.trim();
   if (!q) return [];
   const { data, error } = await supabase
-    .from("iglesias")
+    .from("iglesias_publicas")
     .select("*")
     .or(`nombre.ilike.%${q}%,slug.ilike.%${q}%`)
     .order("nombre");
   if (error) throw new Error(error.message);
-  return (data ?? []).map((f) => aIglesia(f as FilaIglesia));
+  return (data ?? []).map((f) => aIglesiaPublica(f as Record<string, unknown>));
 }
 
 // Equivalente a onSnapshot: se vuelve a leer la tabla ante cualquier cambio.
